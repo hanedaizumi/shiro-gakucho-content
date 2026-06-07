@@ -5,6 +5,8 @@ desktop.ini
 
 # Editor / Cursor (local state only)
 .cursor/
+!AI/.cursor/rules/
+!AI/.cursor/rules/**
 
 # Python
 __pycache__/
