@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "シロ学長 BTC台本ジェネレーター",
-  description: "BTC市況リサーチからYouTubeテクニカル分析台本を自動生成",
+  title: "シロ学長 リサーチ＆台本ジェネレーター",
+  description: "BTC台本生成・コイン別リサーチレポートを自動作成",
 };
 
 export default function RootLayout({
@@ -18,19 +19,19 @@ export default function RootLayout({
           <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
             <div>
               <h1 className="text-lg font-bold text-[var(--accent)]">
-                シロ学長 BTC台本ジェネレーター
+                シロ学長 リサーチ＆台本ジェネレーター
               </h1>
               <p className="text-xs text-[var(--muted)]">
-                市況リサーチ → レポート → YouTube台本
+                BTC台本生成 ／ コイン別リサーチレポート
               </p>
             </div>
             <nav className="flex gap-4 text-sm">
-              <a href="/" className="text-[var(--muted)] hover:text-white">
+              <Link href="/" className="text-[var(--muted)] hover:text-white">
                 ダッシュボード
-              </a>
-              <a href="/settings" className="text-[var(--muted)] hover:text-white">
+              </Link>
+              <Link href="/settings" className="text-[var(--muted)] hover:text-white">
                 設定
-              </a>
+              </Link>
             </nav>
           </div>
         </header>

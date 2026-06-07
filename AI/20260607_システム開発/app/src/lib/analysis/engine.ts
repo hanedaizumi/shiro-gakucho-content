@@ -2,21 +2,15 @@ import type { CollectedData } from "@/lib/collectors";
 import type { TechnicalAnalysis, TradeScenario } from "@/lib/types";
 import { calculateRSI, calculateSMA, formatPrice, roundPrice } from "./indicators";
 import { deriveKeyLevels, detectTrend, findSwingPoints } from "./levels";
-
-const USED_CONCEPTS_ROTATION = [
-  "ダウ理論の厳密定義",
-  "エリオット波動",
-  "オーダーブロック",
-  "逆三尊の正しい見方",
-  "200日移動平均線との乖離率",
-  "価格帯出来高",
-  "フィボナッチ0.618",
-];
+import { detectMarketPhase } from "./phase-detector";
+import { buildConfluence } from "./confluence";
+import { pickConceptByPhase } from "./phase-concepts";
 
 function buildScenarios(
   currentPrice: number,
   keyLevels: ReturnType<typeof deriveKeyLevels>,
-  trend: "bullish" | "bearish" | "neutral"
+  trend: "bullish" | "bearish" | "neutral",
+  actionBridge: string
 ): { bullish: TradeScenario; bearish: TradeScenario } {
   const supports = keyLevels
     .filter((l) => l.type === "support" && l.price <= currentPrice)
@@ -48,7 +42,7 @@ function buildScenarios(
     stopLoss: `${formatPrice(stopLong)}ドル割れ（実体で割れたら即撤退）`,
     takeProfit1: `${formatPrice(tp1Long)}ドル付近で一部利確`,
     takeProfit2: `${formatPrice(tp2Long)}ドル付近（第1目標突破後のみ）`,
-    notes: "先回りせず4時間足の実体確定を待つ。ポジションサイズは口座の2%まで",
+    notes: actionBridge,
   };
 
   const bearish: TradeScenario = {
@@ -57,38 +51,10 @@ function buildScenarios(
     stopLoss: `${formatPrice(stopShort)}ドルを実体で上抜けた場合`,
     takeProfit1: `${formatPrice(tp1Short)}ドル付近`,
     takeProfit2: `${formatPrice(tp2Short)}ドル付近`,
-    notes: "高値切り下がりを確認してから入る。ポジションサイズは口座の2%まで",
+    notes: `基本目線は${trend === "bearish" ? "下" : trend === "bullish" ? "上" : "中立"}。高値切り下がりを確認してから入る。ポジションサイズは口座の2%まで`,
   };
 
-  if (trend === "bearish") {
-    bearish.notes = `基本目線は下。${bearish.notes}`;
-  }
-
   return { bullish, bearish };
-}
-
-function suggestConcept(
-  ma200Divergence: number,
-  rsi: number,
-  usedConcepts: string[]
-): { name: string; reason: string } {
-  const available = USED_CONCEPTS_ROTATION.filter((c) => !usedConcepts.includes(c));
-  const pick = available[0] ?? USED_CONCEPTS_ROTATION[0];
-
-  if (Math.abs(ma200Divergence) > 15 && !usedConcepts.includes("200日移動平均線との乖離率")) {
-    return {
-      name: "200日移動平均線との乖離率",
-      reason: `現在の乖離率は${ma200Divergence.toFixed(1)}%で、機関投資家が注目する水準`,
-    };
-  }
-  if (rsi < 35 && !usedConcepts.includes("RSI売られすぎ")) {
-    return {
-      name: "RSI売られすぎゾーン",
-      reason: `RSI ${rsi.toFixed(0)}は短期反発が起きやすい水準`,
-    };
-  }
-
-  return { name: pick, reason: "直近4本の台本と被らない概念として選定" };
 }
 
 export function runTechnicalAnalysis(
@@ -130,10 +96,22 @@ export function runTechnicalAnalysis(
   const avgVol = daily.slice(-30).reduce((s, c) => s + c.volume, 0) / 30;
   const volumeSpike = recentVol.some((v) => v > avgVol * 1.8);
 
-  const scenarios = buildScenarios(currentPrice, keyLevels, trend);
-  const conceptSuggestion = suggestConcept(ma200Divergence, rsiDaily, usedConcepts);
+  const trendReversalCondition = `${formatPrice(reversalLevel)}ドルを日足実体で上抜けすること`;
 
-  return {
+  const phaseResult = detectMarketPhase(
+    {
+      trend,
+      change7d,
+      ma200Divergence,
+      rsiDaily,
+      volumeSpike,
+      candleCharacteristics,
+      daily,
+    },
+    data
+  );
+
+  const base = {
     currentPrice: roundPrice(currentPrice),
     change24h: data.binance.ticker24h.changePercent,
     change7d,
@@ -146,10 +124,43 @@ export function runTechnicalAnalysis(
     swingHighs: highs,
     swingLows: lows,
     keyLevels,
-    trendReversalCondition: `${formatPrice(reversalLevel)}ドルを日足実体で上抜けすること`,
+    trendReversalCondition,
     candleCharacteristics,
     volumeSpike,
+  };
+
+  const conceptPick = pickConceptByPhase(
+    phaseResult.phase,
+    base,
+    usedConcepts,
+    phaseResult.rsiDivergenceHint
+  );
+
+  const confluence = buildConfluence(
+    base,
+    phaseResult,
+    conceptPick.name,
+    conceptPick.reason
+  );
+
+  const scenarios = buildScenarios(
+    base.currentPrice,
+    keyLevels,
+    trend,
+    confluence.actionBridge
+  );
+
+  return {
+    ...base,
+    marketPhase: phaseResult.phase,
+    marketPhaseLabel: phaseResult.label,
+    phaseReasons: phaseResult.reasons,
+    confluence,
     scenarios,
-    conceptSuggestion,
+    conceptSuggestion: {
+      name: conceptPick.name,
+      reason: conceptPick.reason,
+      phase: phaseResult.phase,
+    },
   };
 }

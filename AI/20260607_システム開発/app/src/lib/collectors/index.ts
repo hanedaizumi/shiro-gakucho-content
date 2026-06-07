@@ -1,30 +1,52 @@
 import { collectBinanceData } from "./binance";
 import { collectCoinMarketCapData } from "./coinmarketcap";
 import { collectNewsRss } from "./news-rss";
-import { collectYouTubeVideos } from "./youtube";
-import { collectXPosts } from "./x-api";
+import { collectYouTubeVideos, type YouTubeVideo } from "./youtube";
+import { analyzeYouTubeVideo, buildYouTubeConsensus } from "./youtube-analyzer";
+import { loadSettings } from "@/lib/settings/store";
+import type { YouTubeVideoAnalysis } from "./youtube-analyzer";
 
 export interface CollectedData {
   binance: Awaited<ReturnType<typeof collectBinanceData>>;
   cmc: Awaited<ReturnType<typeof collectCoinMarketCapData>>;
   news: Awaited<ReturnType<typeof collectNewsRss>>;
-  youtube: Awaited<ReturnType<typeof collectYouTubeVideos>>;
-  xPosts: Awaited<ReturnType<typeof collectXPosts>>;
+  youtube: YouTubeVideo[];
+  youtubeAnalysis: YouTubeVideoAnalysis[];
+  youtubeConsensus: ReturnType<typeof buildYouTubeConsensus>;
 }
 
-export async function collectAllData(options?: {
-  manualXPosts?: string | null;
-  youtubeQueries?: string[];
-}): Promise<CollectedData> {
-  const [binance, cmc, news, youtube, xPosts] = await Promise.all([
+export async function collectAllData(): Promise<CollectedData> {
+  const settings = await loadSettings();
+
+  const [binance, cmc, news, youtubeResult] = await Promise.all([
     collectBinanceData(),
     collectCoinMarketCapData(),
     collectNewsRss(),
-    collectYouTubeVideos(options?.youtubeQueries),
-    collectXPosts(options?.manualXPosts),
+    collectYouTubeVideos({
+      watchedChannels: settings.youtubeChannels,
+      searchQueriesJa: settings.youtubeSearchQueries,
+      searchQueriesEn: ["BTC technical analysis", "bitcoin chart analysis"],
+      maxAgeHours: settings.youtubeMaxAgeHours,
+    }),
   ]);
 
-  return { binance, cmc, news, youtube, xPosts };
+  const youtube = youtubeResult.videos;
+  const youtubeAnalysis = youtube.map((v) => analyzeYouTubeVideo(v));
+  const youtubeConsensus = buildYouTubeConsensus(youtubeAnalysis);
+
+  return {
+    binance,
+    cmc,
+    news,
+    youtube,
+    youtubeAnalysis,
+    youtubeConsensus,
+  };
 }
 
-export { collectBinanceData, collectCoinMarketCapData, collectNewsRss, collectYouTubeVideos, collectXPosts };
+export {
+  collectBinanceData,
+  collectCoinMarketCapData,
+  collectNewsRss,
+  collectYouTubeVideos,
+};

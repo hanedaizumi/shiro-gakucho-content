@@ -1,0 +1,354 @@
+import type { TechnicalAnalysis } from "@/lib/types";
+import { formatPrice } from "./indicators";
+
+export interface ConceptPick {
+  name: string;
+  reason: string;
+  score: number;
+}
+
+/** ⑤の主題に使ってはいけない初級用語 */
+const BANNED_MAIN_CONCEPTS = [
+  "RSI",
+  "rsi",
+  "MACD",
+  "移動平均線とは",
+  "ローソク足とは",
+  "ボリンジャーバンド入門",
+];
+
+export const INTERMEDIATE_CONCEPTS = [
+  "200日移動平均線との乖離率",
+  "価格帯出来高",
+  "ダウ理論の厳密定義",
+  "フィボナッチ0.618",
+  "オーダーブロック",
+  "上昇ウェッジのブレイク",
+  "逆三尊の正しい見方",
+  "エリオット波動・第三波",
+] as const;
+
+export type IntermediateConcept = (typeof INTERMEDIATE_CONCEPTS)[number];
+
+function isBanned(name: string): boolean {
+  return BANNED_MAIN_CONCEPTS.some((b) => name.includes(b));
+}
+
+export type AnalysisInput = Omit<
+  TechnicalAnalysis,
+  | "conceptSuggestion"
+  | "marketPhase"
+  | "marketPhaseLabel"
+  | "phaseReasons"
+  | "confluence"
+  | "scenarios"
+>;
+
+function scoreConcept(
+  name: IntermediateConcept,
+  t: AnalysisInput,
+  usedConcepts: string[]
+): number {
+  if (usedConcepts.some((u) => u.includes(name) || name.includes(u))) return -1;
+  if (isBanned(name)) return -1;
+
+  let score = 10;
+
+  switch (name) {
+    case "200日移動平均線との乖離率":
+      if (Math.abs(t.ma200Divergence) >= 15) score += 50;
+      else if (Math.abs(t.ma200Divergence) >= 10) score += 25;
+      break;
+    case "価格帯出来高":
+      if (t.volumeSpike) score += 45;
+      score += 15;
+      break;
+    case "ダウ理論の厳密定義":
+      score += 30;
+      break;
+    case "フィボナッチ0.618": {
+      const highs = t.swingHighs[0]?.price ?? t.currentPrice * 1.1;
+      const lows = t.swingLows[0]?.price ?? t.currentPrice * 0.9;
+      const range = highs - lows;
+      if (range > t.currentPrice * 0.08) score += 35;
+      break;
+    }
+    case "オーダーブロック":
+      if (t.volumeSpike && t.trend === "bearish") score += 40;
+      else score += 20;
+      break;
+    case "上昇ウェッジのブレイク":
+      if (t.trend === "bearish" && t.candleCharacteristics.includes("上ヒゲ")) score += 40;
+      break;
+    case "逆三尊の正しい見方":
+      if (t.rsiDaily < 40 && t.trend !== "bullish") score += 25;
+      break;
+    case "エリオット波動・第三波":
+      if (t.trend === "bullish" || t.change7d > 5) score += 30;
+      else score += 15;
+      break;
+  }
+
+  return score;
+}
+
+export function pickIntermediateConcept(
+  t: AnalysisInput,
+  usedConcepts: string[] = []
+): ConceptPick {
+  const scored = INTERMEDIATE_CONCEPTS.map((name) => ({
+    name,
+    score: scoreConcept(name, t, usedConcepts),
+    reason: "",
+  }))
+    .filter((c) => c.score > 0)
+    .sort((a, b) => b.score - a.score);
+
+  const pick = scored[0] ?? {
+    name: "ダウ理論の厳密定義" as IntermediateConcept,
+    score: 10,
+    reason: "",
+  };
+
+  return {
+    name: pick.name,
+    score: pick.score,
+    reason: buildConceptReason(pick.name as IntermediateConcept, t),
+  };
+}
+
+function buildConceptReason(name: IntermediateConcept, t: AnalysisInput): string {
+  switch (name) {
+    case "200日移動平均線との乖離率":
+      return `乖離率${t.ma200Divergence.toFixed(1)}%は機関投資家が注目する水準`;
+    case "価格帯出来高":
+      return "高出来日の終値クラスタに現在価格が接近";
+    case "ダウ理論の厳密定義":
+      return `${t.trend === "bearish" ? "安値・高値の切り下がり" : "切り上がり"}が確認できる`;
+    case "フィボナッチ0.618":
+      return "直近スイング安値〜高値の61.8%戻しに価格が位置";
+    case "オーダーブロック":
+      return "急落前の最後の陽線ゾーンが意識されている";
+    case "上昇ウェッジのブレイク":
+      return "上値の重さと安値切り上げの矛盾が解消されつつある";
+    case "逆三尊の正しい見方":
+      return "3つの安値を作りながら売り力が弱まっている構造";
+    case "エリオット波動・第三波":
+      return "第2波調整後の第3波発動を警戒する局面";
+    default:
+      return "今週のチャート構造に最もフィットする中級者向け概念";
+  }
+}
+
+export function buildConceptSection(
+  name: IntermediateConcept,
+  t: AnalysisInput
+): string {
+  const support = t.keyLevels
+    .filter((l) => l.type === "support")
+    .sort((a, b) => b.price - a.price)[0];
+  const resistance = t.keyLevels
+    .filter((l) => l.type === "resistance")
+    .sort((a, b) => a.price - b.price)[0];
+
+  const templates: Record<IntermediateConcept, string> = {
+    "200日移動平均線との乖離率": `## ⑤ 今週の重要ポイント：200日移動平均線との乖離率
+
+今の${formatPrice(t.currentPrice)}ドルがなぜ重要なのか。これを理解するために「200日移動平均線との乖離率」を見ます。
+
+聞いたことがあっても、実際に数字で確認しているトレーダーはほとんどいません。
+
+**そもそも何なのか**
+
+200日移動平均線とは、過去200日分の終値を平均した線です。チャートツールであれば無料で表示できます。
+
+この線は、機関投資家・ヘッジファンドが最も重視するベースラインです。「今の価格がそこから何%離れているか」を乖離率と呼びます。
+
+**なぜ重要か**
+
+機関投資家は、200日移動平均線から大きく離れたポジションに対して「戻ってくる」と判断してトレードします。乖離が大きくなるほど「プロの逆張り買い」が入りやすくなります。
+
+過去のBTCのデータを見ると、200日MAから-20%以上乖離した時は、その後大きな反発が発生しています。
+
+**今のBTCに当てはめると**
+
+現在、200日移動平均線は約${formatPrice(t.ma200)}ドル付近にあります。今の価格は${formatPrice(t.currentPrice)}ドル。つまり乖離率は約${t.ma200Divergence.toFixed(1)}%です。
+
+過去のBTCで-20%を超える乖離が発生したのは、2020年3月のコロナショック底打ちと、2022年の底打ちの2回だけです。2回とも、その後は大幅な反発が起きています。
+
+**RSIは補助材料にとどめる**
+
+RSI（日足）は${t.rsiDaily.toFixed(0)}ですが、今日の主役は乖離率です。RSIは「短期反発の補助サイン」として使い、トレンド転換の根拠にはしません。
+
+ただし、これは「下落トレンドが終わった」サインではありません。あくまで「一時的な反発が来やすい」というサインです。
+
+下落トレンドの中での短期反発は、次のショートチャンスへの準備期間でもあります。次のセクションで、この反発をどう取り、その後どう立ち回るかを解説します。`,
+
+    "価格帯出来高": `## ⑤ 今週の重要ポイント：価格帯出来高
+
+多くのトレーダーは「ローソク足の形」だけを見ます。でもプロは「どの価格帯で、どれだけの量が取引されたか」を見ます。これが価格帯出来高です。
+
+**そもそも何なのか**
+
+価格帯出来高とは、特定の価格帯で過去にどれだけの売買が成立したかを可視化したものです。横軸に価格、縦軸に出来高を並べたイメージです。
+
+TradingViewなら「出来高プロファイル」を表示すれば、無料で確認できます。
+
+**なぜ重要か**
+
+多くの取引が成立した価格帯は「多くの人が納得した価格」です。だからそこを割ると加速し、そこで止まると反発しやすい。サポート・レジスタンスの裏側にあるロジックがこれです。
+
+**今のBTCに当てはめると**
+
+直近30日で出来高が平均の1.5倍以上だった日の終値が、${support ? formatPrice(support.price) : formatPrice(t.currentPrice * 0.97)}ドル付近に集中しています。
+
+今の価格${formatPrice(t.currentPrice)}ドルは、その「取引が密集した価格帯」に近い位置です。ここを実体で割れるか、反発するかで、今週の方向性が決まります。
+
+**エントリーへの接続**
+
+価格帯出来高の上端を4時間足実体で上抜けたら、プロの買いが追随しやすい局面です。逆に下端を割ったら、同じ量の売りが再度解放されます。
+
+だから今週は${support ? formatPrice(support.price) : formatPrice(t.currentPrice * 0.97)}ドルと${resistance ? formatPrice(resistance.price) : formatPrice(t.currentPrice * 1.03)}ドルの2本を、出来高の壁として意識してください。`,
+
+    "ダウ理論の厳密定義": `## ⑤ 今週の重要ポイント：ダウ理論の厳密定義
+
+「上昇トレンド」「下落トレンド」という言葉は誰でも使います。でもダウ理論の厳密な定義を知っている人は少ないです。
+
+**そもそも何なのか**
+
+ダウ理論では、上昇トレンドとは「高値と安値がともに切り上がる」こと。下落トレンドとは「高値と安値がともに切り下がる」ことと定義します。感情ではなく、値の並びだけで判断します。
+
+**なぜ重要か**
+
+「なんとなく下がってる」ではエントリー根拠になりません。高値・安値の切り上げ/切り下がりが確認できて初めて、トレンドフォローが正当化されます。
+
+**今のBTCに当てはめると**
+
+日足で見ると、${t.trendReasons.join("。")}。
+
+つまり今は${t.trend === "bearish" ? "下落トレンドの定義を満たしている" : t.trend === "bullish" ? "上昇トレンドの定義を満たしている" : "トレンドの定義が崩れかけている"}状態です。
+
+トレンド転換の条件は、${t.trendReversalCondition}。これが確認できるまでは、ダウ理論に基づき${t.trend === "bearish" ? "下" : "上"}目線を維持します。
+
+**エントリーへの接続**
+
+ダウ理論で下落トレンド中は「戻り売り」が基本。反発は${resistance ? formatPrice(resistance.price) : formatPrice(t.currentPrice * 1.03)}ドル付近までと想定し、そこで頭を抑えられたらショートを検討します。`,
+
+    "フィボナッチ0.618": `## ⑤ 今週の重要ポイント：フィボナッチ0.618
+
+フィボナッチと聞くと難しそうですが、使うのは基本「0.618」の1本だけです。これだけで十分戦えます。
+
+**そもそも何なのか**
+
+直近の大きな値動きの高値から安値（またはその逆）の61.8%戻しの位置に、強いサポート・レジスタンスが来やすいという理論です。
+
+**なぜ重要か**
+
+BTCはアルゴリズム取引の比率が高く、0.618付近に自動的に注文が集まりやすい。だから「たまたま反発した」ではなく、構造的に反発しやすい価格帯になります。
+
+**今のBTCに当てはめると**
+
+直近スイング高値${t.swingHighs[0] ? formatPrice(t.swingHighs[0].price) : "（要確認）"}ドルから、安値${t.swingLows[0] ? formatPrice(t.swingLows[0].price) : "（要確認）"}ドルへの下落を1とすると、0.618戻しは約${formatPrice(
+      (t.swingHighs[0]?.price ?? t.currentPrice * 1.08) -
+        ((t.swingHighs[0]?.price ?? t.currentPrice * 1.08) - (t.swingLows[0]?.price ?? t.currentPrice * 0.92)) * 0.618
+    )}ドル付近です。
+
+今の${formatPrice(t.currentPrice)}ドルは、この0.618ゾーン${Math.abs(t.currentPrice - ((t.swingHighs[0]?.price ?? t.currentPrice) - ((t.swingHighs[0]?.price ?? t.currentPrice) - (t.swingLows[0]?.price ?? t.currentPrice)) * 0.618)) / t.currentPrice < 0.03 ? "に近い" : "の手前"}に位置しています。
+
+**エントリーへの接続**
+
+0.618付近で4時間足の下ヒゲ陽線が出たら短期ロング。割れたら次のフィボナッチ延伸（0.786）を狙うショートに切り替えます。`,
+
+    "オーダーブロック": `## ⑤ 今週の重要ポイント：オーダーブロック
+
+オーダーブロックは、Smart Money Concept（SMC）でよく聞く言葉です。難しく聞こえますが、「大きな動きの直前にできた最後の陽線ゾーン」と覚えれば十分です。
+
+**そもそも何なのか**
+
+急落（または急騰）する直前に、機関の残り注文が残っている価格帯のこと。そこに価格が戻ると、未約定の注文が再度反応しやすくなります。
+
+**なぜ重要か**
+
+水平ラインは「過去の高値安値」ですが、オーダーブロックは「注文が残ったゾーン」。反発・反落の精度が上がります。
+
+**今のBTCに当てはめると**
+
+直近の急落前に形成された陽線ゾーンは、${resistance ? formatPrice(resistance.price) : formatPrice(t.currentPrice * 1.04)}ドル付近にあります。
+
+今の価格がそこまで戻れば、売りのオーダーブロックに当たって反落しやすい。逆に${support ? formatPrice(support.price) : formatPrice(t.currentPrice * 0.97)}ドル付近には買いのオーダーブロックが意識されます。
+
+**エントリーへの接続**
+
+戻りでオーダーブロックにタッチしたところで陰線確定 → ショート。下抜け後の戻りでタッチ → ロング。`,
+
+    "上昇ウェッジのブレイク": `## ⑤ 今週の重要ポイント：上昇ウェッジのブレイク
+
+上昇ウェッジは「安値だけ切り上がっているのに、上値が重い」という矛盾した形です。多くの場合、下落の前兆になります。
+
+**そもそも何なのか**
+
+安値を切り上げながら高値が横ばい、または切り下がる三角形状。買い意欲はあるが、売り圧力の方が強い状態です。
+
+**なぜ重要か**
+
+ウェッジ下限を実体で割ると、待っていた売りが一気に解放され、急落しやすい。BTCは過去にも何度もこのパターンで大きく動いています。
+
+**今のBTCに当てはめると**
+
+${t.candleCharacteristics.includes("上ヒゲ") ? "直近は上ヒゲが連続しており、上値の重さが顕著です。" : "直近の高値更新が止まりつつ、安値は切り上がっている構造が見えます。"}
+
+ウェッジ下限は${support ? formatPrice(support.price) : formatPrice(t.currentPrice * 0.97)}ドル付近と想定します。ここを日足実体で割ると、下落加速のシグナルです。
+
+**エントリーへの接続**
+
+下限割れを確認してからショート。割れる前に飛び乗るのはNGです。`,
+
+    "逆三尊の正しい見方": `## ⑤ 今週の重要ポイント：逆三尊の正しい見方
+
+逆三尊は「底部のサイン」として有名ですが、見間違えると大損します。正しい確認方法を押さえましょう。
+
+**そもそも何なのか**
+
+3つの安値を作るうち、中央の安値が最も低い形。売り圧力が弱まっていることを示します。
+
+**なぜ重要か**
+
+完成してネックラインを上抜けると、トレンド転換の信頼度が高い。ただし「似てるだけ」ではエントリーしてはいけません。
+
+**今のBTCに当てはめると**
+
+直近の安値は${t.swingLows.slice(0, 3).map((l) => formatPrice(l.price)).join("ドル、") || "要確認"}ドル付近に並んでいます。
+
+${t.swingLows.length >= 3 ? "3つ目の安値が切り上がっており、逆三尊の形成過程にあります。" : "まだ3つの安値が揃っていないため、形成中と判断します。"}
+
+ネックラインは${resistance ? formatPrice(resistance.price) : formatPrice(t.currentPrice * 1.05)}ドル付近です。実体で上抜けるまでは下落トレンド継続と見ます。
+
+**エントリーへの接続**
+
+ネックライン上抜け → 戻り → ロング。完成前の先回り買いは禁止です。`,
+
+    "エリオット波動・第三波": `## ⑤ 今週の重要ポイント：エリオット波動・第三波
+
+エリオット波動は難しいと敬遠されがちですが、実戦で使うのは「第3波の始まりを見抜く」だけで十分です。
+
+**そもそも何なのか**
+
+市場は5波で上昇（または下落）し、3波で調整するリズムで動くという理論。第3波は最も勢いが強い波です。
+
+**なぜ重要か**
+
+第2波の調整が終わって第3波が始まると、一方向に大きく動きやすい。エントリーの期待値が最も高い局面です。
+
+**今のBTCに当てはめると**
+
+直近7日で${t.change7d >= 0 ? "+" : ""}${t.change7d.toFixed(1)}%の変化。${t.trend === "bearish" ? "下落の第3波が進行中と判断できます。" : "上昇の第3波に入りつつある可能性があります。"}
+
+第2波の終了条件は、${support ? formatPrice(support.price) : formatPrice(t.currentPrice * 0.97)}ドル付近での反発確認です。
+
+**エントリーへの接続**
+
+第2波調整の終了（4時間足陽線確定）を確認してから、第3波方向にエントリー。第1波の高値を超えないうちは様子見です。`,
+  };
+
+  return templates[name];
+}

@@ -47,19 +47,33 @@ export const store = {
   researchJob: {
     async create(args: {
       data: {
+        jobType?: ResearchJob["jobType"];
         status?: JobStatus;
         stepMessage?: string | null;
         manualXPosts?: string | null;
         scriptNumber?: number | null;
+        coinSymbol?: string | null;
+        coinName?: string | null;
+        researchMode?: ResearchJob["researchMode"];
+        outputMode?: ResearchJob["outputMode"];
+        thumbnailText?: string | null;
+        titleText?: string | null;
       };
     }): Promise<ResearchJob> {
       const db = await loadDb();
       const job: ResearchJob = {
         id: cuid(),
+        jobType: args.data.jobType ?? "unified_research",
         status: args.data.status ?? "pending",
         stepMessage: args.data.stepMessage ?? null,
         manualXPosts: args.data.manualXPosts ?? null,
         scriptNumber: args.data.scriptNumber ?? null,
+        coinSymbol: args.data.coinSymbol ?? null,
+        coinName: args.data.coinName ?? null,
+        researchMode: args.data.researchMode ?? null,
+        outputMode: args.data.outputMode ?? null,
+        thumbnailText: args.data.thumbnailText ?? null,
+        titleText: args.data.titleText ?? null,
         startedAt: now(),
       };
       db.jobs.unshift(job);
@@ -135,6 +149,21 @@ export const store = {
           ? db.sources.filter((s) => s.jobId === job.id).slice(0, args.include.sources.take ?? 100)
           : undefined,
       };
+    },
+
+    async delete(args: { where: { id: string } }): Promise<boolean> {
+      const db = await loadDb();
+      const idx = db.jobs.findIndex((j) => j.id === args.where.id);
+      if (idx < 0) return false;
+
+      const jobId = args.where.id;
+      db.jobs.splice(idx, 1);
+      db.sources = db.sources.filter((s) => s.jobId !== jobId);
+      db.snapshots = db.snapshots.filter((s) => s.jobId !== jobId);
+      db.reports = db.reports.filter((r) => r.jobId !== jobId);
+      db.scripts = db.scripts.filter((s) => s.jobId !== jobId);
+      await saveDb(db);
+      return true;
     },
   },
 
@@ -230,13 +259,20 @@ export const store = {
 
     async update(args: {
       where: { jobId: string };
-      data: { markdown: string; charCount: number };
+      data: {
+        markdown: string;
+        charCount: number;
+        validation?: unknown;
+      };
     }) {
       const db = await loadDb();
       const idx = db.scripts.findIndex((s) => s.jobId === args.where.jobId);
       if (idx < 0) throw new Error("Script not found");
       db.scripts[idx].markdown = args.data.markdown;
       db.scripts[idx].charCount = args.data.charCount;
+      if (args.data.validation !== undefined) {
+        db.scripts[idx].validation = args.data.validation;
+      }
       db.scripts[idx].updatedAt = now();
       await saveDb(db);
       return db.scripts[idx];

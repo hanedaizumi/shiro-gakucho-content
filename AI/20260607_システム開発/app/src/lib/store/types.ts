@@ -8,11 +8,22 @@ export type JobStatus =
   | "script_ready"
   | "failed";
 
+export type JobType = "unified_research";
+export type CoinResearchMode = "fundamentals" | "technical" | "both";
+export type OutputMode = "report" | "script" | "report_and_script";
+
 export interface ResearchJob {
   id: string;
+  jobType?: JobType;
   status: JobStatus;
   stepMessage?: string | null;
   scriptNumber?: number | null;
+  coinSymbol?: string | null;
+  coinName?: string | null;
+  researchMode?: CoinResearchMode | null;
+  outputMode?: OutputMode | null;
+  thumbnailText?: string | null;
+  titleText?: string | null;
   startedAt: string;
   completedAt?: string | null;
   errorMessage?: string | null;

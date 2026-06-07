@@ -1,4 +1,5 @@
 import { SyncHistoryButton } from "@/components/SyncHistoryButton";
+import { YouTubeChannelSettings } from "@/components/YouTubeChannelSettings";
 
 export default function SettingsPage() {
   const envVars = [
@@ -7,7 +8,7 @@ export default function SettingsPage() {
     { key: "OPENAI_API_KEY", required: false },
     { key: "COINMARKETCAP_API_KEY", required: false },
     { key: "YOUTUBE_API_KEY", required: false },
-    { key: "X_API_BEARER_TOKEN", required: false },
+    { key: "YOUTUBE_API_KEY_FALLBACK", required: false },
     { key: "TECHNICAL_WORKSPACE_PATH", required: false },
     { key: "TECHNICAL_OUTPUT_PATH", required: false },
   ];
@@ -20,7 +21,9 @@ export default function SettingsPage() {
         <h3 className="mb-3 font-semibold">環境変数（.env）</h3>
         <p className="mb-4 text-sm text-[var(--muted)]">
           APIキーは <code className="text-[var(--accent)]">app/.env</code> に設定してください。
-          LLM APIキー未設定時はルールベースのフォールバック生成が動作します。
+          台本・レポート・コインリサーチはAPIキーなしでも基本動作します。
+          YouTube競合分析・CoinMarketCap詳細には各APIキーが必要です。
+          設定後は開発サーバーを再起動してください。
         </p>
         <table className="w-full text-sm">
           <thead>
@@ -41,13 +44,17 @@ export default function SettingsPage() {
       </div>
 
       <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-6">
+        <h3 className="mb-3 font-semibold">YouTube ウォッチチャンネル</h3>
+        <YouTubeChannelSettings />
+      </div>
+
+      <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-6">
         <h3 className="mb-3 font-semibold">データソース</h3>
         <ul className="space-y-2 text-sm text-[var(--muted)]">
           <li>Tier 1: Binance API（価格・OHLCV）— 常時有効</li>
           <li>Tier 1: ニュースRSS（CoinDesk, Cointelegraph）— 常時有効</li>
           <li>Tier 2: CoinMarketCap — APIキー設定時</li>
           <li>Tier 2: YouTube Data API — APIキー設定時</li>
-          <li>Tier 2: X API — トークン設定時（未設定時は手動ペースト）</li>
         </ul>
       </div>
 

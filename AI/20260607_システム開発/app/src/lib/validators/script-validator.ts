@@ -18,8 +18,8 @@ export function validateScript(
   // Char count
   checks.push({
     id: "char_count",
-    label: "文字数（3,000〜3,800）",
-    passed: charCount >= 2800 && charCount <= 4000,
+    label: "文字数（4,000文字以上）",
+    passed: charCount >= 4000,
     message: `現在 ${charCount} 文字`,
   });
 
@@ -31,6 +31,31 @@ export function validateScript(
       passed: markdown.includes(sec),
     });
   }
+
+  // Concept: RSI must not be main topic in ⑤
+  const section5 = markdown.split("## ⑤")[1]?.split("## ⑥")[0] ?? "";
+  const conceptName = (report.weeklyConcept as Record<string, string>).name ?? "";
+  const rsiAsMain =
+    /## ⑤[^\n]*RSI(?!ダイバージェンス)/i.test(markdown) ||
+    (section5.slice(0, 60).match(/^## ⑤[^\n]*RSI$/m) !== null);
+  checks.push({
+    id: "concept_not_rsi",
+    label: "⑤の主題がRSI単体ではない",
+    passed: !rsiAsMain || conceptName.includes("ダイバージェンス"),
+    message: rsiAsMain ? "RSI単体が主題になっています" : conceptName,
+  });
+
+  checks.push({
+    id: "confluence_structure",
+    label: "④にコンフルエンス/フェーズ記述あり",
+    passed: /コンフルエンス|フェーズ|構造レイヤー/.test(markdown.split("## ⑤")[0] ?? ""),
+  });
+
+  checks.push({
+    id: "three_part_concept",
+    label: "⑤に3段構成（学習・分析・実践）",
+    passed: /学習/.test(section5) && /分析/.test(section5) && /実践/.test(section5),
+  });
 
   // NG words
   const ngFound = NG_WORDS.filter((w) => markdown.includes(w));

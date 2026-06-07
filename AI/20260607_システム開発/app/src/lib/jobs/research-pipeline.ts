@@ -26,15 +26,13 @@ async function updateJob(
 
 export async function runResearchPipeline(
   jobId: string,
-  options?: { manualXPosts?: string; scriptNumber?: number }
+  options?: { scriptNumber?: number }
 ) {
   try {
     await syncScriptHistoryFromFiles();
 
     await updateJob(jobId, "collecting", "市況データを収集中...");
-    const collected = await collectAllData({
-      manualXPosts: options?.manualXPosts,
-    });
+    const collected = await collectAllData();
 
     // Save source documents
     await prisma.sourceDocument.createMany({
@@ -65,20 +63,23 @@ export async function runResearchPipeline(
           type: "youtube",
           title: v.title,
           url: v.url,
-          content: `${v.channelTitle}: ${v.description}`,
-        })),
-        ...collected.xPosts.map((p) => ({
-          jobId,
-          type: "x",
-          title: p.author,
-          url: p.url,
-          content: p.text,
+          content: JSON.stringify({
+            channel: v.channelTitle,
+            fromWatchedChannel: v.fromWatchedChannel,
+            contentSource: v.contentSource,
+            description: v.description.slice(0, 500),
+            transcript: v.transcript.slice(0, 3000),
+            analysis: collected.youtubeAnalysis.find((a) => a.videoId === v.videoId),
+          }),
         })),
       ],
     });
 
+    const scriptNumber =
+      options?.scriptNumber ?? (await getNextScriptNumber());
+
     await updateJob(jobId, "analyzing", "テクニカル分析を実行中...");
-    const ctx = await loadExternalContext();
+    const ctx = await loadExternalContext(scriptNumber);
     const technical = runTechnicalAnalysis(collected, ctx.usedConcepts);
 
     await prisma.marketSnapshot.createMany({
@@ -106,7 +107,7 @@ export async function runResearchPipeline(
     const { markdown: reportMd, json: reportJson } = await generateReport(
       collected,
       technical,
-      ctx.previousPrediction
+      ctx.previousScript
     );
 
     await prisma.report.create({
@@ -118,8 +119,6 @@ export async function runResearchPipeline(
     });
 
     await updateJob(jobId, "report_ready", "レポート完成。台本を生成中...");
-
-    const scriptNumber = options?.scriptNumber ?? (await getNextScriptNumber());
 
     await updateJob(jobId, "script_generating", "台本を生成中...", {
       scriptNumber,
@@ -160,7 +159,7 @@ export async function runResearchPipeline(
         episodeUsed,
         keyLevels: reportJson.technical.keyLevels as object,
         content: scriptMd.slice(0, 50000),
-        publishedAt: new Date(),
+        publishedAt: new Date().toISOString(),
       },
       update: {
         filename: scriptFilename,
@@ -168,7 +167,7 @@ export async function runResearchPipeline(
         episodeUsed,
         keyLevels: reportJson.technical.keyLevels as object,
         content: scriptMd.slice(0, 50000),
-        publishedAt: new Date(),
+        publishedAt: new Date().toISOString(),
       },
     });
 
@@ -179,7 +178,7 @@ export async function runResearchPipeline(
       data: {
         status: "script_ready",
         stepMessage: "完了",
-        completedAt: new Date(),
+        completedAt: new Date().toISOString(),
         scriptNumber,
       },
     });
@@ -191,7 +190,7 @@ export async function runResearchPipeline(
         status: "failed",
         errorMessage: message,
         stepMessage: "エラーが発生しました",
-        completedAt: new Date(),
+        completedAt: new Date().toISOString(),
       },
     });
     throw error;

@@ -1,6 +1,12 @@
 import { readFile, readdir } from "fs/promises";
 import path from "path";
 import { prisma } from "@/lib/db";
+import { getTechnicalWorkspacePath } from "./workspace";
+import {
+  loadPreviousScript,
+  buildPreviousPredictionReport,
+  type PreviousScriptContext,
+} from "./previous-script";
 
 export interface ExternalContext {
   persona: string;
@@ -10,16 +16,8 @@ export interface ExternalContext {
   usedConcepts: string[];
   usedEpisodes: string[];
   previousPrediction: Record<string, unknown>;
-}
-
-function getTechnicalWorkspacePath(): string {
-  const configured = process.env.TECHNICAL_WORKSPACE_PATH;
-  if (configured) {
-    return path.isAbsolute(configured)
-      ? configured
-      : path.join(process.cwd(), configured);
-  }
-  return path.join(process.cwd(), "..", "..", "..", "シロ学長テクニカル");
+  previousScript: PreviousScriptContext | null;
+  scriptNumber: number;
 }
 
 async function readIfExists(filePath: string): Promise<string> {
@@ -56,20 +54,18 @@ function extractEpisode(content: string): string | null {
   return null;
 }
 
-function extractKeyLevels(content: string): Record<string, number> {
-  const levels: Record<string, number> = {};
-  const matches = content.matchAll(/(\d{2,3}[,.]?\d{0,3})\s*ドル/g);
-  for (const m of matches) {
-    const num = parseFloat(m[1].replace(/,/g, ""));
-    if (num > 10000 && num < 200000) {
-      levels[`level_${Object.keys(levels).length}`] = num;
-    }
-  }
-  return levels;
+export async function getNextScriptNumber(): Promise<number> {
+  const last = await prisma.scriptHistory.findFirst({
+    orderBy: { scriptNumber: "desc" },
+  });
+  return (last?.scriptNumber ?? 5) + 1;
 }
 
-export async function loadExternalContext(): Promise<ExternalContext> {
+export async function loadExternalContext(
+  scriptNumber?: number
+): Promise<ExternalContext> {
   const ws = getTechnicalWorkspacePath();
+  const resolvedScriptNumber = scriptNumber ?? (await getNextScriptNumber());
 
   const [persona, channelRules, scriptSkill] = await Promise.all([
     readIfExists(path.join(ws, "03_YouTube台本", "インプット", "persona_technical.md")),
@@ -77,12 +73,12 @@ export async function loadExternalContext(): Promise<ExternalContext> {
     readIfExists(path.join(ws, ".cursor", "skills", "script-creation", "SKILL.md")),
   ]);
 
-  const inputDir = path.join(ws, "03_YouTube台本", "インプット");
   const archiveDir = path.join(ws, "02_アーカイブ", "過去台本");
+  const inputDir = path.join(ws, "03_YouTube台本", "インプット");
 
   const files = [
-    ...(await findScriptFiles(inputDir)),
     ...(await findScriptFiles(archiveDir)),
+    ...(await findScriptFiles(inputDir)),
   ];
 
   const scriptsWithContent = await Promise.all(
@@ -99,7 +95,7 @@ export async function loadExternalContext(): Promise<ExternalContext> {
 
   const dbHistory = await prisma.scriptHistory.findMany({
     orderBy: { scriptNumber: "desc" },
-    take: 4,
+    take: 6,
   });
 
   const usedConcepts = [
@@ -112,13 +108,22 @@ export async function loadExternalContext(): Promise<ExternalContext> {
     ...sorted.map((s) => extractEpisode(s.content)).filter(Boolean) as string[],
   ];
 
-  const latest = sorted[0];
-  const previousPrediction = latest
+  const previousScript = await loadPreviousScript(resolvedScriptNumber);
+
+  const previousPrediction = previousScript
     ? {
-        previousScript: latest.filename,
-        keyLevels: extractKeyLevels(latest.content),
-        summary: "前回動画の予測ラインと現在価格を照合してください",
-        latestContentExcerpt: latest.content.slice(0, 2000),
+        scriptNumber: previousScript.scriptNumber,
+        filename: previousScript.filename,
+        predictionQuote: previousScript.predictionQuote,
+        keyLevels: previousScript.keyLevels,
+        conceptUsed: previousScript.conceptUsed,
+        source: `02_アーカイブ/過去台本/${previousScript.filename}`,
+        reportText: buildPreviousPredictionReport(
+          previousScript,
+          0,
+          "neutral",
+          "（生成時に現在価格で再照合）"
+        ),
       }
     : { summary: "前回台本なし。初回分析として扱う" };
 
@@ -130,29 +135,25 @@ export async function loadExternalContext(): Promise<ExternalContext> {
     usedConcepts: [...new Set(usedConcepts)],
     usedEpisodes: [...new Set(usedEpisodes)],
     previousPrediction,
+    previousScript,
+    scriptNumber: resolvedScriptNumber,
   };
-}
-
-export async function getNextScriptNumber(): Promise<number> {
-  const last = await prisma.scriptHistory.findFirst({
-    orderBy: { scriptNumber: "desc" },
-  });
-  return (last?.scriptNumber ?? 5) + 1;
 }
 
 export async function syncScriptHistoryFromFiles(): Promise<number> {
   const ctx = await loadExternalContext();
   let synced = 0;
 
+  const kanjiMap: Record<string, number> = {
+    "①": 1, "②": 2, "③": 3, "④": 4, "⑤": 5,
+    "⑥": 6, "⑦": 7, "⑧": 8, "⑨": 9, "⑩": 10,
+  };
+
   for (const script of ctx.recentScripts) {
     const numMatch = script.filename.match(/台本([①②③④⑤⑥⑦⑧⑨⑩\d]+)/);
     let scriptNumber = 0;
     if (numMatch) {
       const raw = numMatch[1];
-      const kanjiMap: Record<string, number> = {
-        "①": 1, "②": 2, "③": 3, "④": 4, "⑤": 5,
-        "⑥": 6, "⑦": 7, "⑧": 8, "⑨": 9, "⑩": 10,
-      };
       scriptNumber = kanjiMap[raw] ?? parseInt(raw, 10);
     }
     if (!scriptNumber) continue;
@@ -164,14 +165,13 @@ export async function syncScriptHistoryFromFiles(): Promise<number> {
         filename: script.filename,
         conceptUsed: extractConcept(script.content),
         episodeUsed: extractEpisode(script.content),
-        keyLevels: extractKeyLevels(script.content),
+        keyLevels: {},
         content: script.content.slice(0, 50000),
       },
       update: {
         filename: script.filename,
         conceptUsed: extractConcept(script.content),
         episodeUsed: extractEpisode(script.content),
-        keyLevels: extractKeyLevels(script.content),
         content: script.content.slice(0, 50000),
       },
     });

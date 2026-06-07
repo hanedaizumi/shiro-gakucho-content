@@ -1,12 +1,15 @@
-import { JobDetail } from "@/components/JobDetail";
-import Link from "next/link";
+"use client";
 
-export default async function JobPage({
+import { use } from "react";
+import Link from "next/link";
+import { JobDetail } from "@/components/JobDetail";
+
+export default function JobPage({
   params,
 }: {
   params: Promise<{ id: string }>;
 }) {
-  const { id } = await params;
+  const { id } = use(params);
 
   return (
     <div>

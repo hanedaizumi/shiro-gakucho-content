@@ -50,16 +50,17 @@ export async function fetchKlines(
   }));
 }
 
-export async function collectBinanceData() {
+export async function collectBinanceData(symbol = "BTCUSDT") {
   const [price, ticker24h, daily, h4, h1] = await Promise.all([
-    fetchTickerPrice(),
-    fetch24hTicker(),
-    fetchKlines("1d", 250),
-    fetchKlines("4h", 250),
-    fetchKlines("1h", 100),
+    fetchTickerPrice(symbol),
+    fetch24hTicker(symbol),
+    fetchKlines("1d", 250, symbol),
+    fetchKlines("4h", 250, symbol),
+    fetchKlines("1h", 100, symbol),
   ]);
 
   return {
+    symbol,
     price,
     ticker24h: {
       changePercent: parseFloat(ticker24h.priceChangePercent),

@@ -21,6 +21,33 @@ export interface KeyLevel {
   strength: number;
 }
 
+export type MarketPhase =
+  | "crash_bottom"
+  | "range"
+  | "strong_trend_bull"
+  | "strong_trend_bear"
+  | "reversal";
+
+export interface ConfluenceAnalysis {
+  phase: MarketPhase;
+  phaseLabel: string;
+  phaseReasons: string[];
+  structureLayer: {
+    summary: string;
+    terrain: string;
+    dowVerdict: string;
+    primarySupport: string;
+    primaryResistance: string;
+  };
+  triggerLayer: {
+    concept: string;
+    reason: string;
+  };
+  synthesis: string;
+  actionBridge: string;
+  eventOverlay: string | null;
+}
+
 export interface TechnicalAnalysis {
   currentPrice: number;
   change24h: number;
@@ -37,6 +64,10 @@ export interface TechnicalAnalysis {
   trendReversalCondition: string;
   candleCharacteristics: string;
   volumeSpike: boolean;
+  marketPhase: MarketPhase;
+  marketPhaseLabel: string;
+  phaseReasons: string[];
+  confluence: ConfluenceAnalysis;
   scenarios: {
     bullish: TradeScenario;
     bearish: TradeScenario;
@@ -44,6 +75,7 @@ export interface TechnicalAnalysis {
   conceptSuggestion: {
     name: string;
     reason: string;
+    phase: MarketPhase;
   };
 }
 
@@ -59,6 +91,9 @@ export interface TradeScenario {
 export interface ReportJson {
   summary: string;
   priceVolatility: Record<string, unknown>;
+  marketContext?: Record<string, unknown> | null;
+  marketPhase?: Record<string, unknown>;
+  confluence?: ConfluenceAnalysis;
   chartAnalysis: Record<string, unknown>;
   weeklyConcept: Record<string, unknown>;
   scenarios: Record<string, unknown>;

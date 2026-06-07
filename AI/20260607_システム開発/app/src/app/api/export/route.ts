@@ -27,10 +27,11 @@ export async function GET(request: Request) {
   }
 
   const date = new Date().toISOString().split("T")[0].replace(/-/g, "");
+  const symbol = job.coinSymbol ?? "BTC";
   const filename =
     type === "report"
-      ? `report_${date}.md`
-      : `台本${job.scriptNumber ?? "X"}_BTC分析_${date}.md`;
+      ? `${symbol}_リサーチ_${date}.md`
+      : `台本${job.scriptNumber ?? "X"}_${symbol}分析_${date}.md`;
 
   return new NextResponse(content, {
     headers: {

@@ -35,3 +35,19 @@ export async function exportArtifacts(
 
   return { reportPath, scriptPath };
 }
+
+export async function exportCoinReport(
+  jobId: string,
+  symbol: string,
+  reportMd: string
+): Promise<string> {
+  const date = new Date().toISOString().split("T")[0].replace(/-/g, "");
+  const outputBase = path.join(process.cwd(), "..", "output");
+  const reportsDir = path.join(outputBase, "reports");
+  await mkdir(reportsDir, { recursive: true });
+
+  const filename = `${symbol}_リサーチ_${date}_${jobId.slice(0, 8)}.md`;
+  const reportPath = path.join(reportsDir, filename);
+  await writeFile(reportPath, reportMd, "utf-8");
+  return reportPath;
+}

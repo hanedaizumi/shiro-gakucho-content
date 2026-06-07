@@ -61,3 +61,17 @@ export async function PATCH(
 
   return NextResponse.json(job);
 }
+
+export async function DELETE(
+  _request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const { id } = await params;
+
+  const deleted = await prisma.researchJob.delete({ where: { id } });
+  if (!deleted) {
+    return NextResponse.json({ error: "Job not found" }, { status: 404 });
+  }
+
+  return NextResponse.json({ ok: true });
+}

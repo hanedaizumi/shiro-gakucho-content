@@ -3,6 +3,10 @@ import path from "path";
 import type { CollectedData } from "@/lib/collectors";
 import type { ReportJson, TechnicalAnalysis } from "@/lib/types";
 import { formatPrice } from "@/lib/analysis";
+import {
+  buildPreviousPredictionReport,
+  type PreviousScriptContext,
+} from "@/lib/external-refs/previous-script";
 import { callLlm } from "./provider";
 
 async function loadPrompt(name: string): Promise<string> {
@@ -16,46 +20,56 @@ async function loadPrompt(name: string): Promise<string> {
   }
 }
 
+function buildYouTubeContextBlock(json: ReportJson): string {
+  const consensus = json.externalSummary.youtubeConsensus as {
+    overallSentiment?: string;
+    watchedCount?: number;
+    totalCount?: number;
+    commonPrices?: number[];
+  } | undefined;
+  const videos = (json.externalSummary.youtube as Array<{
+    channel: string;
+    title: string;
+    fromWatchedChannel?: boolean;
+    sentiment?: string;
+    summary?: string;
+    mentionedPrices?: number[];
+    keyPoints?: string[];
+  }>) ?? [];
+
+  if (!videos.length) return "";
+
+  const header = consensus
+    ? `**参考動画の市場見立て:** ${consensus.overallSentiment}（ウォッチ${consensus.watchedCount ?? 0}本 / 計${consensus.totalCount ?? 0}本）`
+    : "**参考動画の市場見立て:**";
+  const priceLine = consensus?.commonPrices?.length
+    ? `\n複数動画で言及された価格: ${consensus.commonPrices.map((p) => `${p.toLocaleString()}ドル`).join("、")}`
+    : "";
+
+  const lines = videos.slice(0, 3).map((v) => {
+    const tag = v.fromWatchedChannel ? "[ウォッチ]" : "";
+    const points = v.keyPoints?.slice(0, 2).join(" / ") ?? v.summary ?? "";
+    return `- ${tag}[${v.channel}] ${v.title}（${v.sentiment ?? "中立"}）: ${points}`;
+  });
+
+  return `\n${header}${priceLine}\n${lines.join("\n")}`;
+}
+
 function buildReportJson(
   data: CollectedData,
   technical: TechnicalAnalysis,
-  previousPrediction: Record<string, unknown>
+  previousScript: PreviousScriptContext | null
 ): ReportJson {
-  const sources = [
-    {
-      type: "binance",
-      title: "Binance BTC/USDT",
-      url: "https://api.binance.com",
-      fetchedAt: data.binance.fetchedAt,
-    },
-    ...data.news.map((n) => ({
-      type: "news",
-      title: n.title,
-      url: n.url,
-      fetchedAt: n.publishedAt,
-    })),
-    ...data.youtube.map((v) => ({
-      type: "youtube",
-      title: v.title,
-      url: v.url,
-      fetchedAt: v.publishedAt,
-    })),
-    ...data.xPosts.map((p) => ({
-      type: "x",
-      title: p.text.slice(0, 80),
-      url: p.url,
-      fetchedAt: p.createdAt,
-    })),
-  ];
-
-  if (data.cmc) {
-    sources.push({
-      type: "coinmarketcap",
-      title: "CoinMarketCap BTC",
-      url: "https://coinmarketcap.com",
-      fetchedAt: new Date().toISOString(),
-    });
-  }
+  const previousPrediction = previousScript
+    ? {
+        scriptNumber: previousScript.scriptNumber,
+        filename: previousScript.filename,
+        predictionQuote: previousScript.predictionQuote,
+        keyLevels: previousScript.keyLevels,
+        conceptUsed: previousScript.conceptUsed,
+        source: `02_アーカイブ/過去台本/${previousScript.filename}`,
+      }
+    : { summary: "前回台本なし" };
 
   return {
     summary: `BTCは${formatPrice(technical.currentPrice)}ドル付近。${technical.trend === "bearish" ? "下落トレンド継続" : technical.trend === "bullish" ? "上昇トレンド" : "レンジ"}と判断できます。`,
@@ -67,7 +81,19 @@ function buildReportJson(
       low24h: data.binance.ticker24h.low,
       marketCap: data.cmc?.marketCap,
       dominance: data.cmc?.dominance,
+      cmcChange24h: data.cmc?.change24h,
+      cmcRank: data.cmc?.rank,
     },
+    marketContext: data.cmc
+      ? {
+          source: "CoinMarketCap",
+          marketCap: data.cmc.marketCap,
+          dominance: data.cmc.dominance,
+          change24h: data.cmc.change24h,
+          rank: data.cmc.rank,
+          note: `BTC時価総額${(data.cmc.marketCap / 1e12).toFixed(2)}兆ドル、ドミナンス${data.cmc.dominance.toFixed(1)}%`,
+        }
+      : null,
     chartAnalysis: {
       trend: technical.trend,
       reasons: technical.trendReasons,
@@ -80,9 +106,16 @@ function buildReportJson(
       trendReversalCondition: technical.trendReversalCondition,
       volumeSpike: technical.volumeSpike,
     },
+    marketPhase: {
+      phase: technical.marketPhase,
+      label: technical.marketPhaseLabel,
+      reasons: technical.phaseReasons,
+    },
+    confluence: technical.confluence,
     weeklyConcept: {
       name: technical.conceptSuggestion.name,
       reason: technical.conceptSuggestion.reason,
+      phase: technical.conceptSuggestion.phase,
       ma200: technical.ma200,
       divergence: technical.ma200Divergence,
       rsi: technical.rsiDaily,
@@ -94,19 +127,45 @@ function buildReportJson(
     previousPrediction,
     externalSummary: {
       news: data.news.map((n) => ({ title: n.title, source: n.source })),
-      youtube: data.youtube.map((v) => ({ title: v.title, channel: v.channelTitle })),
-      x: data.xPosts.map((p) => ({ text: p.text.slice(0, 200), author: p.author })),
+      youtube: data.youtubeAnalysis.map((a) => ({
+        title: a.title,
+        channel: a.channel,
+        url: a.url,
+        publishedAt: a.publishedAt,
+        fromWatchedChannel: a.fromWatchedChannel,
+        contentSource: a.contentSource,
+        sentiment: a.sentiment,
+        mentionedPrices: a.mentionedPrices,
+        keyPoints: a.keyPoints,
+        summary: a.summary,
+        excerpt: a.excerpt,
+      })),
+      youtubeConsensus: data.youtubeConsensus,
     },
-    sources,
+    sources: [],
     technical,
   };
 }
 
-function buildReportMarkdown(json: ReportJson, date: string): string {
+function buildReportMarkdown(
+  json: ReportJson,
+  date: string,
+  previousScript: PreviousScriptContext | null
+): string {
   const b = json.scenarios.bullish as Record<string, string>;
   const s = json.scenarios.bearish as Record<string, string>;
   const ca = json.chartAnalysis as Record<string, unknown>;
   const levels = (ca.keyLevels as Array<{ price: number; type: string; reason: string }>) ?? [];
+  const youtubeBlock = buildYouTubeContextBlock(json);
+
+  const phaseReasons = ((json.marketPhase as { reasons?: string[] })?.reasons ?? []).slice(0, 2);
+
+  const prevSection = buildPreviousPredictionReport(
+    previousScript,
+    json.technical.currentPrice,
+    String(ca.trend),
+    String(ca.trendReversalCondition)
+  );
 
   return `# BTC市況レポート ${date}
 
@@ -118,16 +177,17 @@ ${json.summary}
 - 24h変化: ${json.technical.change24h.toFixed(2)}%
 - 7d変化: ${json.technical.change7d.toFixed(2)}%
 ${json.priceVolatility.marketCap ? `- 時価総額: $${(json.priceVolatility.marketCap as number).toLocaleString()}` : ""}
+${json.priceVolatility.dominance ? `- BTCドミナンス: ${(json.priceVolatility.dominance as number).toFixed(1)}%` : ""}
 
 ## 3. チャート形状分析（日足）
+- フェーズ: ${(json.marketPhase as Record<string, string>)?.label ?? "未判定"}
 - トレンド: ${ca.trend}
-${(ca.reasons as string[]).map((r) => `- ${r}`).join("\n")}
-- MA200: ${formatPrice(json.technical.ma200)}ドル（乖離率 ${json.technical.ma200Divergence.toFixed(1)}%）
-- RSI(日足): ${json.technical.rsiDaily.toFixed(1)}
-- ローソク足: ${ca.candleCharacteristics}
+${phaseReasons.map((r) => `- ${r}`).join("\n")}
 - 重要ライン:
-${levels.map((l) => `  - ${formatPrice(l.price)}ドル（${l.type}）: ${l.reason}`).join("\n")}
+${levels.slice(0, 4).map((l) => `  - ${formatPrice(l.price)}ドル（${l.type}）`).join("\n")}
+- ローソク足: ${ca.candleCharacteristics}
 - トレンド転換条件: ${ca.trendReversalCondition}
+${youtubeBlock}
 
 ## 4. 今週注目のテクニカル概念
 **${(json.weeklyConcept as Record<string, string>).name}**
@@ -148,32 +208,19 @@ ${(json.weeklyConcept as Record<string, string>).reason}
 - 利確1: ${s.takeProfit1}
 - 利確2: ${s.takeProfit2}
 
-## 6. 前回予測との照合
-${JSON.stringify(json.previousPrediction, null, 2)}
-
-## 7. 外部情報サマリー
-### ニュース
-${(json.externalSummary.news as Array<{ title: string }>).map((n) => `- ${n.title}`).join("\n") || "- 該当なし"}
-
-### YouTube
-${(json.externalSummary.youtube as Array<{ title: string; channel: string }>).map((v) => `- [${v.channel}] ${v.title}`).join("\n") || "- APIキー未設定または該当なし"}
-
-### X
-${(json.externalSummary.x as Array<{ text: string }>).map((p) => `- ${p.text}`).join("\n") || "- 手動入力またはAPI未取得"}
-
-## 8. 出典一覧
-${json.sources.map((s) => `- [${s.type}] ${s.title} (${s.fetchedAt})${s.url ? ` ${s.url}` : ""}`).join("\n")}
+## 6. 前回予測との照合（自チャンネル・1つ前の台本）
+${prevSection}
 `;
 }
 
 export async function generateReport(
   data: CollectedData,
   technical: TechnicalAnalysis,
-  previousPrediction: Record<string, unknown>
+  previousScript: PreviousScriptContext | null
 ): Promise<{ markdown: string; json: ReportJson }> {
-  const json = buildReportJson(data, technical, previousPrediction);
+  const json = buildReportJson(data, technical, previousScript);
   const date = new Date().toISOString().split("T")[0];
-  const ruleBasedMd = buildReportMarkdown(json, date);
+  const ruleBasedMd = buildReportMarkdown(json, date, previousScript);
 
   const apiKey =
     process.env.OPENAI_API_KEY ||
@@ -186,7 +233,7 @@ export async function generateReport(
 
   try {
     const system = await loadPrompt("report-system.md");
-    const user = `以下のJSONを元にレポートを作成してください。\n\n${JSON.stringify(json, null, 2)}`;
+    const user = `以下のJSONを元にレポートを作成してください。§7・§8は出力不要。§6は自チャンネルの前回台本との照合のみ。\n\n${JSON.stringify(json, null, 2)}`;
     const llmMd = await callLlm(system, user);
     return { markdown: llmMd || ruleBasedMd, json };
   } catch {

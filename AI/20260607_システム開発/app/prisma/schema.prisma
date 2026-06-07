@@ -21,9 +21,16 @@ enum JobStatus {
 
 model ResearchJob {
   id           String            @id @default(cuid())
+  jobType      String            @default("unified_research")
   status       JobStatus         @default(pending)
   stepMessage  String?
   scriptNumber Int?
+  coinSymbol   String?
+  coinName     String?
+  researchMode String?
+  outputMode   String?
+  thumbnailText String?
+  titleText    String?
   startedAt    DateTime          @default(now())
   completedAt  DateTime?
   errorMessage String?
