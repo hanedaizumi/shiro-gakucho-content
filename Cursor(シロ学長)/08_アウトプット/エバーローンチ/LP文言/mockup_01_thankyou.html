@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>お申し込みありがとうございます</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'Hiragino Kaku Gothic ProN', 'Meiryo', sans-serif;
+    background: #fff;
+    max-width: 480px;
+    margin: 0 auto;
+    color: #333;
+    font-size: 15px;
+    line-height: 1.7;
+  }
+
+  /* ヘッダー */
+  .header-banner {
+    background: linear-gradient(135deg, #1a237e 0%, #283593 50%, #3949ab 100%);
+    padding: 20px 16px;
+    text-align: center;
+    border-bottom: 4px solid #ffd700;
+  }
+  .header-banner h1 {
+    color: #fff;
+    font-size: 22px;
+    font-weight: 900;
+    margin-bottom: 6px;
+    text-shadow: 1px 1px 4px rgba(0,0,0,0.5);
+  }
+  .header-banner .sub {
+    color: #ffd700;
+    font-size: 13px;
+    font-weight: bold;
+  }
+
+  /* メインビジュアル */
+  .hero-image {
+    background: linear-gradient(135deg, #b8860b 0%, #daa520 40%, #ffd700 100%);
+    padding: 24px 20px;
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+  }
+  .hero-image::before {
+    content: '';
+    position: absolute;
+    top: -50%;
+    left: -50%;
+    width: 200%;
+    height: 200%;
+    background: radial-gradient(ellipse at center, rgba(255,255,255,0.15) 0%, transparent 60%);
+  }
+  .hero-image .title-box {
+    background: rgba(0,0,0,0.35);
+    border: 2px solid #ffd700;
+    border-radius: 8px;
+    padding: 14px 20px;
+    display: inline-block;
+    position: relative;
+  }
+  .hero-image .title-box h2 {
+    color: #ffd700;
+    font-size: 24px;
+    font-weight: 900;
+    line-height: 1.3;
+    text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
+  }
+  .hero-image .title-box .sub-title {
+    color: #fff;
+    font-size: 13px;
+    margin-top: 6px;
+  }
+
+  /* セクション共通 */
+  .section { padding: 24px 20px; }
+  .section-white { background: #fff; }
+  .section-light { background: #f9f6f0; }
+  .section-accent { background: #fff8e1; border-top: 3px solid #ffc107; border-bottom: 3px solid #ffc107; }
+
+  /* ありがとうメッセージ */
+  .thanks-header {
+    text-align: center;
+    padding: 28px 20px 20px;
+  }
+  .thanks-header h2 {
+    font-size: 26px;
+    font-weight: 900;
+    color: #1a237e;
+    margin-bottom: 8px;
+  }
+  .thanks-header p {
+    color: #555;
+    font-size: 14px;
+  }
+
+  /* 重要BOX */
+  .important-box {
+    margin: 0 16px;
+    border: 3px solid #e53935;
+    border-radius: 12px;
+    background: #fff;
+    overflow: hidden;
+  }
+  .important-box .box-header {
+    background: #e53935;
+    color: #fff;
+    text-align: center;
+    padding: 10px;
+    font-size: 16px;
+    font-weight: 900;
+    letter-spacing: 2px;
+  }
+  .important-box .box-body {
+    padding: 20px 18px;
+    text-align: center;
+  }
+  .important-box .box-body .step-label {
+    display: inline-block;
+    background: #e53935;
+    color: #fff;
+    font-size: 12px;
+    font-weight: bold;
+    padding: 3px 12px;
+    border-radius: 20px;
+    margin-bottom: 12px;
+  }
+  .important-box .box-body .main-text {
+    font-size: 18px;
+    font-weight: 900;
+    color: #1a1a1a;
+    line-height: 1.5;
+    margin-bottom: 12px;
+  }
+  .important-box .box-body .main-text .highlight {
+    color: #e53935;
+  }
+  .important-box .box-body .sub-text {
+    font-size: 14px;
+    color: #555;
+    line-height: 1.7;
+    margin-bottom: 16px;
+  }
+  .important-box .box-body .warn-text {
+    background: #fff3e0;
+    border-left: 4px solid #ff9800;
+    padding: 10px 12px;
+    font-size: 13px;
+    color: #e65100;
+    text-align: left;
+    border-radius: 4px;
+    margin-bottom: 0;
+    font-weight: bold;
+  }
+
+  /* LINEボタン */
+  .line-btn-wrap {
+    padding: 20px 16px;
+    text-align: center;
+  }
+  .line-btn {
+    display: block;
+    background: #06c755;
+    color: #fff;
+    font-size: 17px;
+    font-weight: 900;
+    padding: 18px 20px;
+    border-radius: 50px;
+    text-decoration: none;
+    box-shadow: 0 6px 20px rgba(6,199,85,0.5);
+    letter-spacing: 0.5px;
+    line-height: 1.3;
+  }
+  .line-btn .btn-sub {
+    display: block;
+    font-size: 12px;
+    font-weight: normal;
+    margin-top: 4px;
+    opacity: 0.9;
+  }
+  .line-btn-arrow {
+    font-size: 22px;
+    display: block;
+    margin-bottom: 4px;
+  }
+
+  /* タイムライン */
+  .timeline {
+    padding: 20px 20px 0;
+  }
+  .timeline-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    margin-bottom: 20px;
+  }
+  .timeline-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    font-size: 18px;
+    font-weight: 900;
+    color: #fff;
+  }
+  .timeline-icon.step1 { background: #e53935; }
+  .timeline-icon.step2 { background: #ff9800; }
+  .timeline-icon.step3 { background: #4caf50; }
+  .timeline-content h4 {
+    font-size: 14px;
+    font-weight: 900;
+    color: #1a1a1a;
+    margin-bottom: 4px;
+  }
+  .timeline-content p {
+    font-size: 13px;
+    color: #666;
+  }
+
+  /* メール確認 */
+  .mail-check {
+    background: #e8f4fd;
+    border: 2px solid #1976d2;
+    border-radius: 10px;
+    padding: 16px;
+    margin: 0 16px 20px;
+  }
+  .mail-check .mail-header {
+    font-size: 14px;
+    font-weight: 900;
+    color: #1976d2;
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .mail-check p {
+    font-size: 13px;
+    color: #444;
+    line-height: 1.6;
+  }
+  .mail-check .folder-list {
+    display: flex;
+    gap: 8px;
+    margin-top: 10px;
+  }
+  .mail-check .folder-tag {
+    background: #1976d2;
+    color: #fff;
+    font-size: 11px;
+    padding: 4px 10px;
+    border-radius: 20px;
+    font-weight: bold;
+  }
+
+  /* 注意書き */
+  .notice-box {
+    margin: 0 16px 24px;
+    background: #f5f5f5;
+    border-radius: 8px;
+    padding: 14px 16px;
+  }
+  .notice-box p {
+    font-size: 12px;
+    color: #777;
+    line-height: 1.7;
+  }
+  .notice-box p + p { margin-top: 6px; }
+
+  /* フッター */
+  .footer {
+    background: #1a237e;
+    padding: 20px;
+    text-align: center;
+    color: rgba(255,255,255,0.6);
+    font-size: 11px;
+  }
+</style>
+</head>
+<body>
+
+<!-- ヘッダー -->
+<div class="header-banner">
+  <h1>お申し込みありがとうございます！</h1>
+  <div class="sub">受付が完了しました</div>
+</div>
+
+<!-- ヒーロービジュアル -->
+<div class="hero-image">
+  <div class="title-box">
+    <h2>仮想通貨<br>プレミアムロジック</h2>
+    <div class="sub-title">個別ロードマップ作成会</div>
+  </div>
+</div>
+
+<!-- メインメッセージ -->
+<div class="thanks-header">
+  <h2>あと1ステップだけ<br>お願いがあります</h2>
+  <p>審査結果を受け取るために<br>LINEの登録が必要です</p>
+</div>
+
+<!-- 重要ボックス -->
+<div class="important-box">
+  <div class="box-header">⚠ 重要：必ずお読みください</div>
+  <div class="box-body">
+    <div class="step-label">NEXT STEP</div>
+    <div class="main-text">
+      審査結果（<span class="highlight">合格・不合格</span>）は<br>
+      <span class="highlight">LINEでのみ</span>お知らせします
+    </div>
+    <div class="sub-text">
+      LINEを登録していないと、<br>
+      審査結果が届かないままになります。<br>
+      <strong>今すぐ下のボタンから登録してください。</strong>
+    </div>
+    <div class="warn-text">
+      📅 審査完了まで：3営業日以内<br>
+      ✅ 審査通過の方には、その後ロードマップ作成会のご案内もお送りします
+    </div>
+  </div>
+</div>
+
+<!-- LINEボタン -->
+<div class="line-btn-wrap">
+  <a href="#" class="line-btn">
+    <span class="line-btn-arrow">▼</span>
+    審査結果を受け取る
+    <span class="btn-sub">LINE登録・無料｜30秒で完了</span>
+  </a>
+</div>
+
+<!-- タイムライン -->
+<div class="section section-light">
+  <div style="text-align:center; font-weight:900; font-size:16px; margin-bottom:16px; color:#1a237e;">この後の流れ</div>
+  <div class="timeline">
+    <div class="timeline-item">
+      <div class="timeline-icon step1">1</div>
+      <div class="timeline-content">
+        <h4>今すぐ：LINEを登録する</h4>
+        <p>審査結果の通知・ロードマップ作成会のご案内はすべてLINEで届きます</p>
+      </div>
+    </div>
+    <div class="timeline-item">
+      <div class="timeline-icon step2">2</div>
+      <div class="timeline-content">
+        <h4>3営業日以内：審査結果をLINEでお知らせ</h4>
+        <p>合格・不合格の結果をLINEでお送りします</p>
+      </div>
+    </div>
+    <div class="timeline-item">
+      <div class="timeline-icon step3">3</div>
+      <div class="timeline-content">
+        <h4>審査通過の方：日程調整のご案内</h4>
+        <p>あなた専用のロードマップ作成会の日程をLINEで調整します（所要30分・無料）</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- メール確認 -->
+<div class="section section-white">
+  <div class="mail-check">
+    <div class="mail-header">📧 受付完了メールについて</div>
+    <p>受付完了メールをお送りしました。届いていない場合は以下のフォルダをご確認ください。</p>
+    <div class="folder-list">
+      <span class="folder-tag">迷惑メール</span>
+      <span class="folder-tag">プロモーション</span>
+      <span class="folder-tag">その他</span>
+    </div>
+  </div>
+</div>
+
+<!-- LINEボタン再掲 -->
+<div class="line-btn-wrap" style="padding-top:0;">
+  <a href="#" class="line-btn">
+    <span class="line-btn-arrow">▼</span>
+    審査結果を受け取る（LINE登録）
+    <span class="btn-sub">登録しないと結果が届きません</span>
+  </a>
+</div>
+
+<!-- 注意書き -->
+<div class="notice-box">
+  <p>※ロードマップ作成会にはシロ学長認定の専任スタッフが出席します。</p>
+  <p>※強引な勧誘は一切ありません。</p>
+  <p>※LINEへの迷惑メッセージは送りません。</p>
+</div>
+
+<!-- フッター -->
+<div class="footer">
+  © シロ学長 仮想通貨プレミアムロジック
+</div>
+
+</body>
+</html>

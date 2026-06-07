@@ -1,0 +1,1045 @@
+//@version=6
+indicator("Swiggy LONG/SHORT + Killzone Only", shorttitle="Swiggy+KZ", overlay=true, max_bars_back=1500, max_lines_count=500, max_labels_count=500, max_boxes_count=500)
+
+// ========== ICT Session (Killzone) - must be early ==========
+var _ict_g_SETTINGS = "ICT Settings"
+ict_gmt_tz = input.string('GMT+9', "Timezone", options = ['America/New_York','GMT-12','GMT-11','GMT-10','GMT-9','GMT-8','GMT-7','GMT-6','GMT-5','GMT-4','GMT-3','GMT-2','GMT-1','GMT+0','GMT+1','GMT+2','GMT+3','GMT+4','GMT+5','GMT+6','GMT+7','GMT+8','GMT+9','GMT+10','GMT+11','GMT+12','GMT+13','GMT+14'], tooltip = "Note GMT is not adjusted to reflect Daylight Saving Time changes", group = _ict_g_SETTINGS)
+var _ict_g_KZ = "ICT Killzones (Session Times)"
+ict_use_sydney = input.bool(true, "", inline = "SYD", group = _ict_g_KZ)
+ict_sydney = input.session("0600-0900", "", inline = "SYD", group = _ict_g_KZ)
+ict_use_tokyo_am = input.bool(true, "", inline = "TKYAM", group = _ict_g_KZ)
+ict_tokyo_am = input.session("0900-1200", "", inline = "TKYAM", group = _ict_g_KZ)
+ict_use_tokyolunch = input.bool(false, "", inline = "TKYLUNCH", group = _ict_g_KZ)
+ict_tokyolunch = input.session("1130-1230", "", inline = "TKYLUNCH", group = _ict_g_KZ)
+ict_use_tokyo_pm = input.bool(true, "", inline = "TKYPM", group = _ict_g_KZ)
+ict_tokyo_pm = input.session("1200-1500", "", inline = "TKYPM", group = _ict_g_KZ)
+ict_use_ukmorning = input.bool(true, "", inline = "UKMORN", group = _ict_g_KZ)
+ict_ukmorning = input.session("1500-1700", "", inline = "UKMORN", group = _ict_g_KZ)
+ict_use_ukam = input.bool(true, "", inline = "UKAM", group = _ict_g_KZ)
+ict_ukam = input.session("1700-1900", "", inline = "UKAM", group = _ict_g_KZ)
+ict_use_ukpm = input.bool(true, "", inline = "UKPM", group = _ict_g_KZ)
+ict_ukpm = input.session("1900-2200", "", inline = "UKPM", group = _ict_g_KZ)
+ict_use_usmorning = input.bool(true, "", inline = "USMORN", group = _ict_g_KZ)
+ict_usmorning = input.session("2200-2330", "", inline = "USMORN", group = _ict_g_KZ)
+ict_use_nyam = input.bool(true, "", inline = "NYAM", group = _ict_g_KZ)
+ict_nyam = input.session("2330-0300", "", inline = "NYAM", group = _ict_g_KZ)
+ict_use_nylu = input.bool(true, "", inline = "NYLU", group = _ict_g_KZ)
+ict_nylu = input.session("0300-0600", "", inline = "NYLU", group = _ict_g_KZ)
+
+ict_is_us_dst() =>
+    int m = month(time, "UTC")
+    int d = dayofmonth(time, "UTC")
+    (m > 3 and m < 11) or (m == 3 and d >= 10) or (m == 11 and d <= 3)
+ict_get_effective_session(string sess, bool is_dst) =>
+    sess == "2000-2330" ? (is_dst ? "2000-2230" : "2000-2330") : sess == "2330-0300" ? (is_dst ? "2230-0200" : "2330-0300") : sess == "0300-0600" ? (is_dst ? "0200-0600" : "0300-0600") : sess == "0600-0800" ? "0600-0800" : sess
+
+vwap2_any_kz_just_started() =>
+    bool kz = false
+    if ict_use_sydney
+        string _e_syd = ict_get_effective_session(ict_sydney, ict_is_us_dst())
+        kz := kz or (not na(time("", _e_syd, ict_gmt_tz)) and na(time("", _e_syd, ict_gmt_tz)[1]))
+    if ict_use_tokyo_am
+        kz := kz or (not na(time("", ict_tokyo_am, ict_gmt_tz)) and na(time("", ict_tokyo_am, ict_gmt_tz)[1]))
+    if ict_use_tokyolunch
+        kz := kz or (not na(time("", ict_tokyolunch, ict_gmt_tz)) and na(time("", ict_tokyolunch, ict_gmt_tz)[1]))
+    if ict_use_tokyo_pm
+        kz := kz or (not na(time("", ict_tokyo_pm, ict_gmt_tz)) and na(time("", ict_tokyo_pm, ict_gmt_tz)[1]))
+    if ict_use_ukmorning
+        kz := kz or (not na(time("", ict_ukmorning, ict_gmt_tz)) and na(time("", ict_ukmorning, ict_gmt_tz)[1]))
+    if ict_use_ukam
+        kz := kz or (not na(time("", ict_ukam, ict_gmt_tz)) and na(time("", ict_ukam, ict_gmt_tz)[1]))
+    if ict_use_ukpm
+        string _e_ukpm = ict_get_effective_session(ict_ukpm, ict_is_us_dst())
+        kz := kz or (not na(time("", _e_ukpm, ict_gmt_tz)) and na(time("", _e_ukpm, ict_gmt_tz)[1]))
+    if ict_use_usmorning
+        kz := kz or (not na(time("", ict_usmorning, ict_gmt_tz)) and na(time("", ict_usmorning, ict_gmt_tz)[1]))
+    if ict_use_nyam
+        string _e_na = ict_get_effective_session(ict_nyam, ict_is_us_dst())
+        kz := kz or (not na(time("", _e_na, ict_gmt_tz)) and na(time("", _e_na, ict_gmt_tz)[1]))
+    if ict_use_nylu
+        string _e_nl = ict_get_effective_session(ict_nylu, ict_is_us_dst())
+        kz := kz or (not na(time("", _e_nl, ict_gmt_tz)) and na(time("", _e_nl, ict_gmt_tz)[1]))
+    kz
+
+vwap2_in_any_kz_session() =>
+    bool kz = false
+    if ict_use_sydney
+        string _e_syd = ict_get_effective_session(ict_sydney, ict_is_us_dst())
+        kz := kz or not na(time("", _e_syd, ict_gmt_tz))
+    if ict_use_tokyo_am
+        kz := kz or not na(time("", ict_tokyo_am, ict_gmt_tz))
+    if ict_use_tokyolunch
+        kz := kz or not na(time("", ict_tokyolunch, ict_gmt_tz))
+    if ict_use_tokyo_pm
+        kz := kz or not na(time("", ict_tokyo_pm, ict_gmt_tz))
+    if ict_use_ukmorning
+        kz := kz or not na(time("", ict_ukmorning, ict_gmt_tz))
+    if ict_use_ukam
+        kz := kz or not na(time("", ict_ukam, ict_gmt_tz))
+    if ict_use_ukpm
+        string _e_ukpm = ict_get_effective_session(ict_ukpm, ict_is_us_dst())
+        kz := kz or not na(time("", _e_ukpm, ict_gmt_tz))
+    if ict_use_usmorning
+        kz := kz or not na(time("", ict_usmorning, ict_gmt_tz))
+    if ict_use_nyam
+        string _e_na = ict_get_effective_session(ict_nyam, ict_is_us_dst())
+        kz := kz or not na(time("", _e_na, ict_gmt_tz))
+    if ict_use_nylu
+        string _e_nl = ict_get_effective_session(ict_nylu, ict_is_us_dst())
+        kz := kz or not na(time("", _e_nl, ict_gmt_tz))
+    kz
+
+var float _kz_run_high = na
+var float _kz_run_low = na
+if vwap2_any_kz_just_started()
+    _kz_run_high := high
+    _kz_run_low := low
+else if vwap2_in_any_kz_session()
+    _kz_run_high := math.max(nz(_kz_run_high), high)
+    _kz_run_low := math.min(nz(_kz_run_low), low)
+else
+    _kz_run_high := na
+    _kz_run_low := na
+
+// ========== Swiggy LONG/SHORT ==========
+bool is_4hr_or_higher = timeframe.in_seconds("") >= 14400
+
+grpSwiggy = "Swiggy LONG/SHORT"
+showSwiggyLabels = input.bool(true, "Show Swiggy LONG/SHORT Labels", group=grpSwiggy, tooltip="LONG: 1m EMA200 < own EMA24 < own EMA8. SHORT: 1m EMA200 > own EMA24 > own EMA8.")
+swiggy_invert_colors = input.bool(false, "Invert colors (LONG=red, SHORT=blue)", group=grpSwiggy, tooltip="OFF: LONG=blue, SHORT=red. ON: LONG=red, SHORT=blue.")
+
+grpEMA = "EMA Lengths"
+ema200_length = input.int(200, "EMA200 Length", group=grpEMA)
+
+float ema8   = not is_4hr_or_higher ? ta.ema(close, 8)   : close
+float ema14  = not is_4hr_or_higher ? ta.ema(close, 14)  : close
+float ema24  = not is_4hr_or_higher ? ta.ema(close, 24)  : close
+float ema50  = not is_4hr_or_higher ? ta.ema(close, 50)  : close
+float ema100 = not is_4hr_or_higher ? ta.ema(close, 100) : close
+float ema200 = not is_4hr_or_higher ? ta.ema(close, ema200_length) : close
+
+float label_atr_offset = ta.atr(14)
+bool show_ema = false
+bool show_tables_15m_or_higher = timeframe.in_seconds("") >= 900
+float ema20 = ta.ema(close, 20)
+float ema400 = ta.ema(close, 400)
+
+// ========== ICT Killzones & Pivots [TFO] (integrated) ==========
+// ---------------------------------------- ICT Constant Functions --------------------------------------------------
+ict_get_line_type(_style) =>
+    switch _style
+        "Solid" => line.style_solid
+        "Dotted" => line.style_dotted
+        "Dashed" => line.style_dashed
+
+ict_get_size(x) =>
+    switch x
+        "Auto" => size.auto
+        "Tiny" => size.tiny
+        "Small" => size.small
+        "Normal" => size.normal
+        "Large" => size.large
+        "Huge" => size.huge
+
+ict_get_table_pos(pos) =>
+    switch pos
+        "Bottom Center" => position.bottom_center
+        "Bottom Left" => position.bottom_left
+        "Bottom Right" => position.bottom_right
+        "Middle Center" => position.middle_center
+        "Middle Left" => position.middle_left
+        "Middle Right" => position.middle_right
+        "Top Center" => position.top_center
+        "Top Left" => position.top_left
+        "Top Right" => position.top_right
+// ---------------------------------------- ICT Inputs --------------------------------------------------
+var ict_g_SETTINGS      = "ICT Settings"
+ict_max_days            = input.int(28, "Session Drawing Limit", 1, tooltip = "Only this many drawings will be kept on the chart, for each selected drawing type (killzone boxes, pivot lines, open lines, etc.)", group = ict_g_SETTINGS)
+ict_tf_limit            = input.timeframe("D", "Timeframe Limit", tooltip = "Drawings will not appear on timeframes greater than or equal to this. Default D = show on all timeframes up to Daily.", group = ict_g_SETTINGS)
+ict_lbl_size            = ict_get_size(input.string('Normal', "Label Size", options = ['Auto', 'Tiny', 'Small', 'Normal', 'Large', 'Huge'], tooltip = "The size of all labels", group = ict_g_SETTINGS))
+ict_txt_color           = input.color(color.black, "Text Color", tooltip = "The color of all label and table text", group = ict_g_SETTINGS)
+ict_use_cutoff          = input.bool(false, "Drawing Cutoff Time", inline = "CO", tooltip = "When enabled, all pivots and open price lines will stop extending at this time", group = ict_g_SETTINGS)
+ict_cutoff              = input.session("1800-1801", "", inline = "CO", group = ict_g_SETTINGS)
+
+bool ict_tf_limit_is_equal_or_more_chart_tf = timeframe.in_seconds('') <= timeframe.in_seconds(ict_tf_limit)
+
+var ict_g_KZ            = "ICT Killzones"
+ict_show_kz             = input.bool(true, "Show Killzone Boxes", inline = "KZ", group = ict_g_KZ)
+ict_show_kz_text        = input.bool(true, "Display Text", inline = "KZ", group = ict_g_KZ)
+ict_show_kz_fib         = input.bool(false, "Fib Levels (1 / 0.764 / 0.5 / 0.236 / 0) [廃止]", inline = "KZ", group = ict_g_KZ)
+ict_kz_weekdays_only    = input.bool(false, "Mon–Fri only (hide Sat/Sun)", group = ict_g_KZ, tooltip = "DEFAULT OFF. When enabled, Killzone boxes (Sydney, Tokyo, UK, US) are shown only on weekdays in the chart timezone. Saturday and Sunday are hidden.")
+
+ict_sydney_txt          = input.string("Sydney", "", inline = "SYD", group = ict_g_KZ)
+ict_sydney_color        = input.color(color.red, "", inline = "SYD", group = ict_g_KZ)
+
+ict_tokyo_am_txt        = input.string("Tokyo AM", "", inline = "TKYAM", group = ict_g_KZ)
+ict_tokyo_am_color      = input.color(color.blue, "", inline = "TKYAM", group = ict_g_KZ)
+ict_tokyolunch_txt      = input.string("Tokyo Lunch", "", inline = "TKYLUNCH", group = ict_g_KZ)
+ict_tokyolunch_color    = input.color(color.green, "", inline = "TKYLUNCH", group = ict_g_KZ)
+ict_tokyo_pm_txt        = input.string("Tokyo PM", "", inline = "TKYPM", group = ict_g_KZ)
+ict_tokyo_pm_color      = input.color(color.black, "", inline = "TKYPM", group = ict_g_KZ)
+
+ict_ukmorning_txt       = input.string("UK Morning", "", inline = "UKMORN", group = ict_g_KZ)
+ict_ukmorning_color     = input.color(color.red, "", inline = "UKMORN", group = ict_g_KZ)
+ict_ukam_txt            = input.string("UK AM", "", inline = "UKAM", group = ict_g_KZ)
+ict_ukam_color          = input.color(color.blue, "", inline = "UKAM", group = ict_g_KZ)
+ict_ukpm_txt            = input.string("UK PM", "", inline = "UKPM", group = ict_g_KZ)
+ict_ukpm_color          = input.color(color.black, "", inline = "UKPM", group = ict_g_KZ)
+
+ict_usmorning_txt       = input.string("US morning", "", inline = "USMORN", group = ict_g_KZ)
+ict_usmorning_color     = input.color(color.red, "", inline = "USMORN", group = ict_g_KZ)
+
+ict_na_txt              = input.string("US AM", "", inline = "NYAM", group = ict_g_KZ)
+ict_na_color            = input.color(color.blue, "", inline = "NYAM", group = ict_g_KZ)
+
+ict_nl_txt              = input.string("US PM", "", inline = "NYLU", group = ict_g_KZ)
+ict_nl_color            = input.color(color.black, "", inline = "NYLU", group = ict_g_KZ)
+
+ict_box_transparency    = input.int(85, "Box Transparency", 0, 100, group = ict_g_KZ)
+ict_text_transparency   = input.int(80, "Text Transparency", 0, 100, group = ict_g_KZ)
+
+
+var ict_g_LABELS        = "ICT Killzone Pivots"
+ict_show_pivots         = input.bool(true, "Show Pivots (Swing High/Low)", inline = "PV", group = ict_g_LABELS)
+ict_use_alerts          = input.bool(true, "Alert Broken Pivots", inline = "PV", tooltip = "The desired killzones must be enabled at the time that an alert is created, along with the show pivots option, in order for alerts to work", group = ict_g_LABELS)
+ict_show_midpoints      = input.bool(false, "Show Pivot Midpoints", inline = "mp", group = ict_g_LABELS)
+ict_stop_midpoints      = input.bool(true, "Stop Once Mitigated", inline = "mp", group = ict_g_LABELS)
+ict_show_labels         = input.bool(false, "Show Pivot Labels", inline = "LB", tooltip = "Show labels denoting each killzone's high and low. Optionally choose to show the price of each level. Right side will show labels on the right-hand side of the chart until they are reached", group = ict_g_LABELS)
+ict_label_price         = input.bool(false, "Display Price", inline = "LB", group = ict_g_LABELS)
+ict_label_right         = input.bool(false, "Right Side", inline = "LB", group = ict_g_LABELS)
+ict_ext_pivots          = input.string("Until Mitigated", "Extend Pivots...", options = ['Until Mitigated', 'Past Mitigation'], group = ict_g_LABELS)
+ict_ext_which           = input.string("Most Recent", "...From Which Sessions", options = ['Most Recent', 'All'], group = ict_g_LABELS)
+
+ict_sydney_h_str        = input.string("SYD.H", "Killzone Sydney Labels", inline = "L_SYD", group = ict_g_LABELS)
+ict_sydney_l_str        = input.string("SYD.L", "", inline = "L_SYD", group = ict_g_LABELS)
+
+ict_tokyo_am_h_str      = input.string("TKYAM.H", "Killzone 1a Labels", inline = "L_TKYAM", group = ict_g_LABELS)
+ict_tokyo_am_l_str      = input.string("TKYAM.L", "", inline = "L_TKYAM", group = ict_g_LABELS)
+ict_tokyolunch_h_str    = input.string("TKYLUNCH.H", "Killzone Tokyo Lunch Labels", inline = "L_TKYLUNCH", group = ict_g_LABELS)
+ict_tokyolunch_l_str    = input.string("TKYLUNCH.L", "", inline = "L_TKYLUNCH", group = ict_g_LABELS)
+ict_tokyo_pm_h_str      = input.string("TKYPM.H", "Killzone 1b Labels", inline = "L_TKYPM", group = ict_g_LABELS)
+ict_tokyo_pm_l_str      = input.string("TKYPM.L", "", inline = "L_TKYPM", group = ict_g_LABELS)
+
+ict_ukmorning_h_str     = input.string("UKMORN.H", "Killzone UK Morning Labels", inline = "L_UKMORN", group = ict_g_LABELS)
+ict_ukmorning_l_str     = input.string("UKMORN.L", "", inline = "L_UKMORN", group = ict_g_LABELS)
+ict_ukam_h_str          = input.string("UKAM.H", "Killzone 2a Labels", inline = "L_UKAM", group = ict_g_LABELS)
+ict_ukam_l_str          = input.string("UKAM.L", "", inline = "L_UKAM", group = ict_g_LABELS)
+ict_ukpm_h_str          = input.string("UKPM.H", "Killzone 2b Labels", inline = "L_UKPM", group = ict_g_LABELS)
+ict_ukpm_l_str          = input.string("UKPM.L", "", inline = "L_UKPM", group = ict_g_LABELS)
+
+ict_usmorning_h_str     = input.string("USMORN.H", "Killzone US morning Labels", inline = "L_USMORN", group = ict_g_LABELS)
+ict_usmorning_l_str     = input.string("USMORN.L", "", inline = "L_USMORN", group = ict_g_LABELS)
+
+ict_nah_str             = input.string("USAM.H", "Killzone 3 Labels", inline = "L_NA", group = ict_g_LABELS)
+ict_nal_str             = input.string("USAM.L", "", inline = "L_NA", group = ict_g_LABELS)
+
+ict_nlh_str             = input.string("USPM.H", "Killzone 4 Labels", inline = "L_NL", group = ict_g_LABELS)
+ict_nll_str             = input.string("USPM.L", "", inline = "L_NL", group = ict_g_LABELS)
+
+ict_kzp_style           = ict_get_line_type(input.string(defval = 'Solid', title = "Pivot Style", options = ['Solid', 'Dotted', 'Dashed'], inline = "KZP", group = ict_g_LABELS))
+ict_kzp_width           = input.int(1, "", inline = "KZP", group = ict_g_LABELS)
+ict_kzm_style           = ict_get_line_type(input.string(defval = 'Dotted', title = "Midpoint Style", options = ['Solid', 'Dotted', 'Dashed'], inline = "KZM", group = ict_g_LABELS))
+ict_kzm_width           = input.int(1, "", inline = "KZM", group = ict_g_LABELS)
+
+
+var ict_g_RNG           = "ICT Killzone Range"
+ict_show_range          = input.bool(false, "Show Killzone Range", tooltip = "Show the most recent ranges of each selected killzone, from high to low", group = ict_g_RNG)
+ict_show_range_avg      = input.bool(false, "Show Average", tooltip = "Show the average range of each selected killzone", group = ict_g_RNG)
+ict_range_avg           = input.int(5, "Average Length", 0, tooltip = "This many previous sessions will be used to calculate the average. If there isn't enough data on the current chart, it will use as many sessions as possible", group = ict_g_RNG)
+ict_range_pos           = ict_get_table_pos(input.string('Top Right', "Table Position", options = ['Bottom Center', 'Bottom Left', 'Bottom Right', 'Middle Center', 'Middle Left', 'Middle Right', 'Top Center', 'Top Left', 'Top Right'], group = ict_g_RNG))
+ict_range_size          = ict_get_size(input.string('Tiny', "Table Size", options = ['Auto', 'Tiny', 'Small', 'Normal', 'Large', 'Huge'], group = ict_g_RNG))
+
+
+var ict_g_DWM           = "ICT Day-Week-Month"
+ict_sep_unlimited       = input.bool(false, "Unlimited", tooltip = "Unlimited will show as many of the selected lines as possible. Otherwise, the session drawing limit will be used", group = ict_g_DWM)
+ict_alert_HL            = input.bool(false, "Alert High/Low Break", tooltip = "Alert when any selected highs and lows are traded through. The desired timeframe's high/low option must be enabled at the time that an alert is created", group = ict_g_DWM)
+
+ict_show_d_open         = input.bool(false, "D Open", inline = "DO", group = ict_g_DWM)
+ict_dhl                 = input.bool(false, "High/Low", inline = "DO", tooltip = "", group = ict_g_DWM)
+ict_ds                  = input.bool(false, "Separators", inline = "DO", tooltip = "Mark where a new day begins", group = ict_g_DWM)
+ict_d_color             = input.color(color.blue, "", inline = "DO", group = ict_g_DWM)
+
+ict_show_w_open         = input.bool(false, "W Open", inline = "WO", group = ict_g_DWM)
+ict_whl                 = input.bool(false, "High/Low", inline = "WO", tooltip = "", group = ict_g_DWM)
+ict_ws                  = input.bool(false, "Separators", inline = "WO", tooltip = "Mark where a new week begins", group = ict_g_DWM)
+ict_w_color             = input.color(#089981, "", inline = "WO", group = ict_g_DWM)
+
+ict_show_m_open         = input.bool(false, "M Open", inline = "MO", group = ict_g_DWM)
+ict_mhl                 = input.bool(false, "High/Low", inline = "MO", tooltip = "", group = ict_g_DWM)
+ict_ms                  = input.bool(false, "Separators", inline = "MO", tooltip = "Mark where a new month begins", group = ict_g_DWM)
+ict_m_color             = input.color(color.red, "", inline = "MO", group = ict_g_DWM)
+
+ict_htf_style           = ict_get_line_type(input.string(defval = 'Solid', title = "Style", options = ['Solid', 'Dotted', 'Dashed'], inline = "D0", group = ict_g_DWM))
+ict_htf_width           = input.int(1, "", inline = "D0", group = ict_g_DWM)
+
+ict_dow_labels          = input.bool(true, "Day of Week Labels", inline = "DOW", group = ict_g_DWM)
+ict_dow_yloc            = input.string('Bottom', "", options = ['Top', 'Bottom'], inline = "DOW", group = ict_g_DWM)
+ict_dow_xloc            = input.string('Midnight', "", options = ['Midnight', 'Midday'], inline = "DOW", group = ict_g_DWM)
+ict_dow_hide_wknd       = input.bool(false, "Hide Weekend Labels", group = ict_g_DWM)
+
+
+var ict_g_OPEN          = "ICT Opening Prices"
+ict_open_unlimited      = input.bool(false, "Unlimited", tooltip = "Unlimited will show as many of the selected lines as possible. Otherwise, the session drawing limit will be used", group = ict_g_OPEN)
+
+ict_use_h1              = input.bool(false, "", inline = "H1", group = ict_g_OPEN)
+ict_h1_text             = input.string("True Day Open", "", inline = "H1", group = ict_g_OPEN)
+ict_h1                  = input.session("0000-0001", "", inline = "H1", group = ict_g_OPEN)
+ict_h1_color            = input.color(color.black, "", inline = "H1", group = ict_g_OPEN)
+
+ict_use_h2              = input.bool(false, "", inline = "H2", group = ict_g_OPEN)
+ict_h2_text             = input.string("06:00", "", inline = "H2", group = ict_g_OPEN)
+ict_h2                  = input.session("0600-0601", "", inline = "H2", group = ict_g_OPEN)
+ict_h2_color            = input.color(color.black, "", inline = "H2", group = ict_g_OPEN)
+
+ict_use_h3              = input.bool(false, "", inline = "H3", group = ict_g_OPEN)
+ict_h3_text             = input.string("10:00", "", inline = "H3", group = ict_g_OPEN)
+ict_h3                  = input.session("1000-1001", "", inline = "H3", group = ict_g_OPEN)
+ict_h3_color            = input.color(color.black, "", inline = "H3", group = ict_g_OPEN)
+
+ict_use_h4              = input.bool(false, "", inline = "H4", group = ict_g_OPEN)
+ict_h4_text             = input.string("14:00", "", inline = "H4", group = ict_g_OPEN)
+ict_h4                  = input.session("1400-1401", "", inline = "H4", group = ict_g_OPEN)
+ict_h4_color            = input.color(color.black, "", inline = "H4", group = ict_g_OPEN)
+
+ict_use_h5              = input.bool(false, "", inline = "H5", group = ict_g_OPEN)
+ict_h5_text             = input.string("00:00", "", inline = "H5", group = ict_g_OPEN)
+ict_h5                  = input.session("0000-0001", "", inline = "H5", group = ict_g_OPEN)
+ict_h5_color            = input.color(color.black, "", inline = "H5", group = ict_g_OPEN)
+
+ict_use_h6              = input.bool(false, "", inline = "H6", group = ict_g_OPEN)
+ict_h6_text             = input.string("00:00", "", inline = "H6", group = ict_g_OPEN)
+ict_h6                  = input.session("0000-0001", "", inline = "H6", group = ict_g_OPEN)
+ict_h6_color            = input.color(color.black, "", inline = "H6", group = ict_g_OPEN)
+
+ict_use_h7              = input.bool(false, "", inline = "H7", group = ict_g_OPEN)
+ict_h7_text             = input.string("00:00", "", inline = "H7", group = ict_g_OPEN)
+ict_h7                  = input.session("0000-0001", "", inline = "H7", group = ict_g_OPEN)
+ict_h7_color            = input.color(color.black, "", inline = "H7", group = ict_g_OPEN)
+
+ict_use_h8              = input.bool(false, "", inline = "H8", group = ict_g_OPEN)
+ict_h8_text             = input.string("00:00", "", inline = "H8", group = ict_g_OPEN)
+ict_h8                  = input.session("0000-0001", "", inline = "H8", group = ict_g_OPEN)
+ict_h8_color            = input.color(color.black, "", inline = "H8", group = ict_g_OPEN)
+
+ict_hz_style            = ict_get_line_type(input.string(defval = 'Dotted', title = "Style", options = ['Solid', 'Dotted', 'Dashed'], inline = "H0", group = ict_g_OPEN))
+ict_hz_width            = input.int(1, "", inline = "H0", group = ict_g_OPEN)
+
+
+var ict_g_VERTICAL      = "ICT Timestamps"
+ict_v_unlimited         = input.bool(false, "Unlimited", tooltip = "Unlimited will show as many of the selected lines as possible. Otherwise, the session drawing limit will be used", group = ict_g_VERTICAL)
+
+ict_use_v1              = input.bool(false, "", inline = "V1", group = ict_g_VERTICAL)
+ict_v1                  = input.session("0000-0001", "", inline = "V1", group = ict_g_VERTICAL)
+ict_v1_color            = input.color(color.black, "", inline = "V1", group = ict_g_VERTICAL)
+
+ict_use_v2              = input.bool(false, "", inline = "V2", group = ict_g_VERTICAL)
+ict_v2                  = input.session("0800-0801", "", inline = "V2", group = ict_g_VERTICAL)
+ict_v2_color            = input.color(color.black, "", inline = "V2", group = ict_g_VERTICAL)
+
+ict_use_v3              = input.bool(false, "", inline = "V3", group = ict_g_VERTICAL)
+ict_v3                  = input.session("1000-1001", "", inline = "V3", group = ict_g_VERTICAL)
+ict_v3_color            = input.color(color.black, "", inline = "V3", group = ict_g_VERTICAL)
+
+ict_use_v4              = input.bool(false, "", inline = "V4", group = ict_g_VERTICAL)
+ict_v4                  = input.session("1200-1201", "", inline = "V4", group = ict_g_VERTICAL)
+ict_v4_color            = input.color(color.black, "", inline = "V4", group = ict_g_VERTICAL)
+
+ict_vl_style            = ict_get_line_type(input.string(defval = 'Dotted', title = "Style", options = ['Solid', 'Dotted', 'Dashed'], inline = "V0", group = ict_g_VERTICAL))
+ict_vl_width            = input.int(1, "", inline = "V0", group = ict_g_VERTICAL)
+// ---------------------------------------- ICT Inputs --------------------------------------------------
+
+
+// ---------------------------------------- ICT Variables & Constants --------------------------------------------------
+type ict_kz
+	string _title
+	array<box> _box
+	array<line> _hi_line
+	array<line> _md_line
+	array<line> _lo_line
+	array<label> _hi_label
+	array<label> _lo_label
+	array<bool> _hi_valid
+	array<bool> _md_valid
+	array<bool> _lo_valid
+	array<float> _range_store
+	float _range_current
+	int _last_session_start = na
+	int _last_session_end = na
+	float _last_box_top = na
+	float _last_box_bottom = na
+	box _preview_box = na
+	array<line> _fib_lines
+	array<box> _fib_fill_boxes
+
+type ict_hz
+	array<line> LN
+	array<label> LB
+	array<bool> CO
+
+type ict_dwm_hl
+	array<line> hi_line
+	array<line> lo_line
+	array<label> hi_label
+	array<label> lo_label
+	bool hit_high = false
+	bool hit_low = false
+
+type ict_dwm_info
+	string tf
+	float o = na
+	float h = na
+	float l = na
+	float ph = na
+	float pl = na
+
+type ict_lines_helper
+    ict_hz _hz
+    string h
+    string h_text
+    color h_color
+
+ict_initLines() =>
+    array<ict_lines_helper> res = array.new<ict_lines_helper>()
+    if ict_use_h1
+        res.push(ict_lines_helper.new(ict_hz.new(array.new_line(), array.new_label(), array.new_bool()), ict_h1, ict_h1_text, ict_h1_color))
+    if ict_use_h2
+        res.push(ict_lines_helper.new(ict_hz.new(array.new_line(), array.new_label(), array.new_bool()), ict_h2, ict_h2_text, ict_h2_color))
+    if ict_use_h3
+        res.push(ict_lines_helper.new(ict_hz.new(array.new_line(), array.new_label(), array.new_bool()), ict_h3, ict_h3_text, ict_h3_color))
+    if ict_use_h4
+        res.push(ict_lines_helper.new(ict_hz.new(array.new_line(), array.new_label(), array.new_bool()), ict_h4, ict_h4_text, ict_h4_color))
+    if ict_use_h5
+        res.push(ict_lines_helper.new(ict_hz.new(array.new_line(), array.new_label(), array.new_bool()), ict_h5, ict_h5_text, ict_h5_color))
+    if ict_use_h6
+        res.push(ict_lines_helper.new(ict_hz.new(array.new_line(), array.new_label(), array.new_bool()), ict_h6, ict_h6_text, ict_h6_color))
+    if ict_use_h7
+        res.push(ict_lines_helper.new(ict_hz.new(array.new_line(), array.new_label(), array.new_bool()), ict_h7, ict_h7_text, ict_h7_color))
+    if ict_use_h8
+        res.push(ict_lines_helper.new(ict_hz.new(array.new_line(), array.new_label(), array.new_bool()), ict_h8, ict_h8_text, ict_h8_color))
+    res
+
+var array<ict_lines_helper> ict_lines = ict_initLines()
+
+type ict_kz_helper
+    ict_kz _kz
+    string session
+    color c
+    string box_txt
+    string hi_txt
+    string lo_txt
+
+ict_initKZ() =>
+    array<ict_kz_helper> res = array.new<ict_kz_helper>()
+    if ict_use_sydney
+        res.push(ict_kz_helper.new(
+             ict_kz.new(ict_sydney_txt, array.new_box(), array.new_line(), array.new_line(), array.new_line(), array.new_label(), array.new_label(), array.new_bool(), array.new_bool(), array.new_bool(), array.new_float(), na, na, na, na, na, na, array.new_line(), array.new_box()),
+             ict_sydney, ict_sydney_color, ict_sydney_txt, ict_sydney_h_str, ict_sydney_l_str
+         ))
+    if ict_use_tokyo_am
+        res.push(ict_kz_helper.new(
+             ict_kz.new(ict_tokyo_am_txt, array.new_box(), array.new_line(), array.new_line(), array.new_line(), array.new_label(), array.new_label(), array.new_bool(), array.new_bool(), array.new_bool(), array.new_float(), na, na, na, na, na, na, array.new_line(), array.new_box()),
+             ict_tokyo_am, ict_tokyo_am_color, ict_tokyo_am_txt, ict_tokyo_am_h_str, ict_tokyo_am_l_str
+         ))
+    if ict_use_tokyolunch
+        res.push(ict_kz_helper.new(
+             ict_kz.new(ict_tokyolunch_txt, array.new_box(), array.new_line(), array.new_line(), array.new_line(), array.new_label(), array.new_label(), array.new_bool(), array.new_bool(), array.new_bool(), array.new_float(), na, na, na, na, na, na, array.new_line(), array.new_box()),
+             ict_tokyolunch, ict_tokyolunch_color, ict_tokyolunch_txt, ict_tokyolunch_h_str, ict_tokyolunch_l_str
+         ))
+    if ict_use_tokyo_pm
+        res.push(ict_kz_helper.new(
+             ict_kz.new(ict_tokyo_pm_txt, array.new_box(), array.new_line(), array.new_line(), array.new_line(), array.new_label(), array.new_label(), array.new_bool(), array.new_bool(), array.new_bool(), array.new_float(), na, na, na, na, na, na, array.new_line(), array.new_box()),
+             ict_tokyo_pm, ict_tokyo_pm_color, ict_tokyo_pm_txt, ict_tokyo_pm_h_str, ict_tokyo_pm_l_str
+         ))
+    if ict_use_ukmorning
+        res.push(ict_kz_helper.new(
+             ict_kz.new(ict_ukmorning_txt, array.new_box(), array.new_line(), array.new_line(), array.new_line(), array.new_label(), array.new_label(), array.new_bool(), array.new_bool(), array.new_bool(), array.new_float(), na, na, na, na, na, na, array.new_line(), array.new_box()),
+             ict_ukmorning, ict_ukmorning_color, ict_ukmorning_txt, ict_ukmorning_h_str, ict_ukmorning_l_str
+         ))
+    if ict_use_ukam
+        res.push(ict_kz_helper.new(
+             ict_kz.new(ict_ukam_txt, array.new_box(), array.new_line(), array.new_line(), array.new_line(), array.new_label(), array.new_label(), array.new_bool(), array.new_bool(), array.new_bool(), array.new_float(), na, na, na, na, na, na, array.new_line(), array.new_box()),
+             ict_ukam, ict_ukam_color, ict_ukam_txt, ict_ukam_h_str, ict_ukam_l_str
+         ))
+    if ict_use_ukpm
+        res.push(ict_kz_helper.new(
+             ict_kz.new(ict_ukpm_txt, array.new_box(), array.new_line(), array.new_line(), array.new_line(), array.new_label(), array.new_label(), array.new_bool(), array.new_bool(), array.new_bool(), array.new_float(), na, na, na, na, na, na, array.new_line(), array.new_box()),
+             ict_ukpm, ict_ukpm_color, ict_ukpm_txt, ict_ukpm_h_str, ict_ukpm_l_str
+         ))
+    if ict_use_usmorning
+        res.push(ict_kz_helper.new(
+             ict_kz.new(ict_usmorning_txt, array.new_box(), array.new_line(), array.new_line(), array.new_line(), array.new_label(), array.new_label(), array.new_bool(), array.new_bool(), array.new_bool(), array.new_float(), na, na, na, na, na, na, array.new_line(), array.new_box()),
+             ict_usmorning, ict_usmorning_color, ict_usmorning_txt, ict_usmorning_h_str, ict_usmorning_l_str
+         ))
+    if ict_use_nyam
+        res.push(ict_kz_helper.new(
+             ict_kz.new(ict_na_txt, array.new_box(), array.new_line(), array.new_line(), array.new_line(), array.new_label(), array.new_label(), array.new_bool(), array.new_bool(), array.new_bool(), array.new_float(), na, na, na, na, na, na, array.new_line(), array.new_box()),
+             ict_nyam, ict_na_color, ict_na_txt, ict_nah_str, ict_nal_str
+         ))
+    if ict_use_nylu
+        res.push(ict_kz_helper.new(
+             ict_kz.new(ict_nl_txt, array.new_box(), array.new_line(), array.new_line(), array.new_line(), array.new_label(), array.new_label(), array.new_bool(), array.new_bool(), array.new_bool(), array.new_float(), na, na, na, na, na, na, array.new_line(), array.new_box()),
+             ict_nylu, ict_nl_color, ict_nl_txt, ict_nlh_str, ict_nll_str
+         ))
+    res
+
+var array<ict_kz_helper> ict_kz = ict_initKZ()
+
+var ict_d_hl = ict_dwm_hl.new(array.new_line(), array.new_line(), array.new_label(), array.new_label())
+var ict_w_hl = ict_dwm_hl.new(array.new_line(), array.new_line(), array.new_label(), array.new_label())
+var ict_m_hl = ict_dwm_hl.new(array.new_line(), array.new_line(), array.new_label(), array.new_label())
+
+var ict_d_info = ict_dwm_info.new("D")
+var ict_w_info = ict_dwm_info.new("W")
+var ict_m_info = ict_dwm_info.new("M")
+
+ict_t_co = not na(time("", ict_cutoff, ict_gmt_tz))
+
+type ict_ts_helper
+    string session
+    array<line> lines
+    color c
+
+ict_initTS() =>
+    array<ict_ts_helper> res = array.new<ict_ts_helper>()
+    if ict_use_v1
+        res.push(ict_ts_helper.new(ict_v1, array.new_line(), ict_v1_color))
+    if ict_use_v2
+        res.push(ict_ts_helper.new(ict_v2, array.new_line(), ict_v2_color))
+    if ict_use_v3
+        res.push(ict_ts_helper.new(ict_v3, array.new_line(), ict_v3_color))
+    if ict_use_v4
+        res.push(ict_ts_helper.new(ict_v4, array.new_line(), ict_v4_color))
+    res
+
+var array<ict_ts_helper> ict_ts_data = ict_initTS()
+
+var ict_d_sep_line = array.new_line()
+var ict_w_sep_line = array.new_line()
+var ict_m_sep_line = array.new_line()
+
+var ict_d_line = array.new_line()
+var ict_w_line = array.new_line()
+var ict_m_line = array.new_line()
+
+var ict_d_label = array.new_label()
+var ict_w_label = array.new_label()
+var ict_m_label = array.new_label()
+
+var ict_transparent = #ffffff00
+var ict_one_hour_ms = 3600000.0
+ict_ext_current = ict_ext_which == 'Most Recent'
+ict_ext_past = ict_ext_pivots == 'Past Mitigation'
+
+ict_update_dwm_info(ict_dwm_info n) =>
+    if timeframe.change(n.tf)
+        n.ph := n.h
+        n.pl := n.l
+        n.o := open
+        n.h := high
+        n.l := low
+    else
+        n.h := math.max(high, n.h)
+        n.l := math.min(low, n.l)
+
+if ict_dhl or ict_show_d_open
+    ict_update_dwm_info(ict_d_info)
+if ict_whl or ict_show_w_open
+    ict_update_dwm_info(ict_w_info)
+if ict_mhl or ict_show_m_open
+    ict_update_dwm_info(ict_m_info)
+// ---------------------------------------- ICT Variables & Constants --------------------------------------------------
+
+
+// ---------------------------------------- ICT Functions --------------------------------------------------
+ict_get_box_color(color c) =>
+    color.new(c, ict_box_transparency)
+
+ict_get_text_color(color c) =>
+    color.new(c, ict_text_transparency)
+
+// ---------------------------------------- ICT Functions --------------------------------------------------
+
+
+// ---------------------------------------- ICT Core Logic --------------------------------------------------
+ict_dwm_sep(string tf, bool use, array<line> arr, color col) =>
+    if use
+        if timeframe.change(tf)
+            arr.unshift(line.new(bar_index, high * 1.0001, bar_index, low, style = ict_htf_style, width = ict_htf_width, extend = extend.both, color = col))
+            if not ict_sep_unlimited and arr.size() > ict_max_days
+                arr.pop().delete()
+
+ict_dwm_open(string tf, bool use, array<line> lns, array<label> lbls, ict_dwm_info n, color col) =>
+    if use
+        if lns.size() > 0
+            lns.get(0).set_x2(time)
+            lbls.get(0).set_x(time)
+        if timeframe.change(tf)
+            lns.unshift(line.new(time, n.o, time, n.o, xloc = xloc.bar_time, style = ict_htf_style, width = ict_htf_width, color = col))
+            lbls.unshift(label.new(time, n.o, tf + " OPEN", xloc = xloc.bar_time, style = label.style_label_left, color = ict_transparent, textcolor = ict_txt_color, size = ict_lbl_size))
+            if not ict_sep_unlimited and lns.size() > ict_max_days
+                lns.pop().delete()
+                lbls.pop().delete()
+
+ict_dwm_hl(string tf, bool use, ict_dwm_hl hl, ict_dwm_info n, color col) =>
+    if use
+        if hl.hi_line.size() > 0
+            hl.hi_line.get(0).set_x2(time)
+            hl.lo_line.get(0).set_x2(time)
+            hl.hi_label.get(0).set_x(time)
+            hl.lo_label.get(0).set_x(time)
+        if timeframe.change(tf)
+            hl.hi_line.unshift(line.new(time, n.ph, time, n.ph, xloc = xloc.bar_time, style = ict_htf_style, width = ict_htf_width, color = col))
+            hl.lo_line.unshift(line.new(time, n.pl, time, n.pl, xloc = xloc.bar_time, style = ict_htf_style, width = ict_htf_width, color = col))
+            hl.hi_label.unshift(label.new(time, n.ph, "P" + tf + "H", xloc = xloc.bar_time, style = label.style_label_left, color = ict_transparent, textcolor = ict_txt_color, size = ict_lbl_size))
+            hl.lo_label.unshift(label.new(time, n.pl, "P" + tf + "L", xloc = xloc.bar_time, style = label.style_label_left, color = ict_transparent, textcolor = ict_txt_color, size = ict_lbl_size))
+            hl.hit_high := false
+            hl.hit_low := false
+            if not ict_sep_unlimited and hl.hi_line.size() > ict_max_days
+                hl.hi_line.pop().delete()
+                hl.lo_line.pop().delete()
+                hl.hi_label.pop().delete()
+                hl.lo_label.pop().delete()
+        if hl.hi_line.size() > 0 and ict_alert_HL
+            if not hl.hit_high and high > hl.hi_line.get(0).get_y1()
+                hl.hit_high := true
+            if not hl.hit_low and low < hl.lo_line.get(0).get_y1()
+                hl.hit_low := true
+
+ict_dwm() =>
+    if ict_tf_limit_is_equal_or_more_chart_tf
+        ict_dwm_sep("D", ict_ds, ict_d_sep_line, ict_d_color)
+        ict_dwm_sep("W", ict_ws, ict_w_sep_line, ict_w_color)
+        ict_dwm_sep("M", ict_ms, ict_m_sep_line, ict_m_color)
+        ict_dwm_open("D", ict_show_d_open, ict_d_line, ict_d_label, ict_d_info, ict_d_color)
+        ict_dwm_open("W", ict_show_w_open, ict_w_line, ict_w_label, ict_w_info, ict_w_color)
+        ict_dwm_open("M", ict_show_m_open, ict_m_line, ict_m_label, ict_m_info, ict_m_color)
+        ict_dwm_hl("D", ict_dhl, ict_d_hl, ict_d_info, ict_d_color)
+        ict_dwm_hl("W", ict_whl, ict_w_hl, ict_w_info, ict_w_color)
+        ict_dwm_hl("M", ict_mhl, ict_m_hl, ict_m_info, ict_m_color)
+
+method ict_vline(ict_ts_helper this) =>
+    bool t = not na(time("", this.session, ict_gmt_tz))
+    bool t_prev = not na(time("", this.session, ict_gmt_tz, bars_back = 1))
+    array<line> arr = this.lines
+    color col = this.c
+    if t and not t_prev
+        arr.unshift(line.new(bar_index, high * 1.0001, bar_index, low, style = ict_vl_style, width = ict_vl_width, extend = extend.both, color = col))
+    if not ict_v_unlimited
+        if arr.size() > ict_max_days
+            arr.pop().delete()
+
+ict_vlines() =>
+    if ict_tf_limit_is_equal_or_more_chart_tf
+        for [_, value] in ict_ts_data
+            ict_vline(value)
+
+method ict_hz_line(ict_lines_helper this) =>
+    bool t = not na(time("", this.h, ict_gmt_tz))
+    bool t_prev = not na(time("", this.h, ict_gmt_tz, bars_back = 1))
+    ict_hz hz = this._hz
+    string txt = this.h_text
+    color col = this.h_color
+    if t and not t_prev
+        hz.LN.unshift(line.new(bar_index, open, bar_index, open, style = ict_hz_style, width = ict_hz_width, color = col))
+        hz.LB.unshift(label.new(bar_index, open, txt, style = label.style_label_left, color = ict_transparent, textcolor = ict_txt_color, size = ict_lbl_size))
+        array.unshift(hz.CO, false)
+        if not ict_open_unlimited and hz.LN.size() > ict_max_days
+            hz.LN.pop().delete()
+            hz.LB.pop().delete()
+            hz.CO.pop()
+    if not t and hz.CO.size() > 0
+        if not hz.CO.get(0)
+            hz.LN.get(0).set_x2(bar_index)
+            hz.LB.get(0).set_x(bar_index)
+            if (ict_use_cutoff ? ict_t_co : false)
+                hz.CO.set(0, true)
+
+ict_hz_lines() =>
+    if ict_tf_limit_is_equal_or_more_chart_tf
+        for [_, value] in ict_lines
+            ict_hz_line(value)
+
+ict_del_kz(ict_kz k) =>
+    if k._box.size() > ict_max_days
+        k._box.pop().delete()
+    if k._hi_line.size() > ict_max_days
+        k._hi_line.pop().delete()
+        k._lo_line.pop().delete()
+        k._hi_valid.pop()
+        k._lo_valid.pop()
+        if ict_show_midpoints
+            k._md_line.pop().delete()
+            k._md_valid.pop()
+    if k._hi_label.size() > ict_max_days
+        k._hi_label.pop().delete()
+        k._lo_label.pop().delete()
+
+ict_update_price_string(label L, float P) =>
+    S = L.get_text()
+    pre = str.substring(S, 0, str.pos(S, " "))
+    str.trim(pre)
+    L.set_text(str.format("{0} ({1})", pre, P))
+
+ict_adjust_in_kz(ict_kz kz, bool t) =>
+    if t
+        kzBox0 = kz._box.get(0)
+        kzBox0.set_right(time)
+        newTop = math.max(kzBox0.get_top(), high)
+        kzBox0.set_top(newTop)
+        newBottom = math.min(kzBox0.get_bottom(), low)
+        kzBox0.set_bottom(newBottom)
+        kz._range_current := newTop - newBottom
+        if ict_show_pivots and kz._hi_line.size() > 0
+            kzHiLine0 = kz._hi_line.get(0)
+            kzHiLine0.set_x2(time)
+            if high > kzHiLine0.get_y1()
+                kzHiLine0.set_xy1(time, high)
+                kzHiLine0.set_xy2(time, high)
+            kzLoLine0 = kz._lo_line.get(0)
+            kzLoLine0.set_x2(time)
+            if low < kzLoLine0.get_y1()
+                kzLoLine0.set_xy1(time, low)
+                kzLoLine0.set_xy2(time, low)
+            if ict_show_midpoints
+                kzMidLine0 = kz._md_line.get(0)
+                kzMidLine0.set_x2(time)
+                kzMidLine0.set_xy1(time, math.avg(kzHiLine0.get_y2(), kzLoLine0.get_y2()))
+                kzMidLine0.set_xy2(time, math.avg(kzHiLine0.get_y2(), kzLoLine0.get_y2()))
+        if ict_show_labels and kz._hi_label.size() > 0
+            if ict_label_right
+                kz._hi_label.get(0).set_x(time)
+                kz._lo_label.get(0).set_x(time)
+            if high > kz._hi_label.get(0).get_y()
+                kz._hi_label.get(0).set_xy(time, high)
+                if ict_label_price
+                    ict_update_price_string(kz._hi_label.get(0), high)
+            if low < kz._lo_label.get(0).get_y()
+                kz._lo_label.get(0).set_xy(time, low)
+                if ict_label_price
+                    ict_update_price_string(kz._lo_label.get(0), low)
+        if ict_show_kz_fib and kz._fib_lines.size() >= 5
+            int _boxLeft = int(kzBox0.get_left())
+            float _top = kzBox0.get_top()
+            float _bot = kzBox0.get_bottom()
+            float _rr = _top - _bot
+            float _f764 = _top - 0.236 * _rr
+            float _f5 = _top - 0.5 * _rr
+            float _f236 = _top - 0.764 * _rr
+            kz._fib_lines.get(0).set_xy1(_boxLeft, _top)
+            kz._fib_lines.get(0).set_xy2(time, _top)
+            kz._fib_lines.get(1).set_xy1(_boxLeft, _f764)
+            kz._fib_lines.get(1).set_xy2(time, _f764)
+            kz._fib_lines.get(2).set_xy1(_boxLeft, _f5)
+            kz._fib_lines.get(2).set_xy2(time, _f5)
+            kz._fib_lines.get(3).set_xy1(_boxLeft, _f236)
+            kz._fib_lines.get(3).set_xy2(time, _f236)
+            kz._fib_lines.get(4).set_xy1(_boxLeft, _bot)
+            kz._fib_lines.get(4).set_xy2(time, _bot)
+            if kz._fib_fill_boxes.size() >= 4
+                kz._fib_fill_boxes.get(0).set_left(_boxLeft)
+                kz._fib_fill_boxes.get(0).set_top(_top)
+                kz._fib_fill_boxes.get(0).set_right(time)
+                kz._fib_fill_boxes.get(0).set_bottom(_f764)
+                kz._fib_fill_boxes.get(1).set_left(_boxLeft)
+                kz._fib_fill_boxes.get(1).set_top(_f764)
+                kz._fib_fill_boxes.get(1).set_right(time)
+                kz._fib_fill_boxes.get(1).set_bottom(_f5)
+                kz._fib_fill_boxes.get(2).set_left(_boxLeft)
+                kz._fib_fill_boxes.get(2).set_top(_f5)
+                kz._fib_fill_boxes.get(2).set_right(time)
+                kz._fib_fill_boxes.get(2).set_bottom(_f236)
+                kz._fib_fill_boxes.get(3).set_left(_boxLeft)
+                kz._fib_fill_boxes.get(3).set_top(_f236)
+                kz._fib_fill_boxes.get(3).set_right(time)
+                kz._fib_fill_boxes.get(3).set_bottom(_bot)
+            else
+                array.push(kz._fib_fill_boxes, box.new(_boxLeft, _top, time, _f764, xloc = xloc.bar_time, border_color = na, bgcolor = color.new(color.blue, 75)))
+                array.push(kz._fib_fill_boxes, box.new(_boxLeft, _f764, time, _f5, xloc = xloc.bar_time, border_color = na, bgcolor = color.new(color.blue, 90)))
+                array.push(kz._fib_fill_boxes, box.new(_boxLeft, _f5, time, _f236, xloc = xloc.bar_time, border_color = na, bgcolor = color.new(color.red, 90)))
+                array.push(kz._fib_fill_boxes, box.new(_boxLeft, _f236, time, _bot, xloc = xloc.bar_time, border_color = na, bgcolor = color.new(color.red, 75)))
+
+ict_adjust_out_kz(ict_kz kz, bool t, bool t_prev) =>
+    boxCount = kz._box.size()
+    if not t and boxCount > 0
+        if t_prev
+            array.unshift(kz._range_store, kz._range_current)
+            if kz._range_store.size() > ict_range_avg
+                kz._range_store.pop()
+            kzBox0 = kz._box.get(0)
+            kz._last_session_start := int(kzBox0.get_left())
+            kz._last_session_end := int(kzBox0.get_right())
+            kz._last_box_top := kzBox0.get_top()
+            kz._last_box_bottom := kzBox0.get_bottom()
+            if ict_show_kz_fib and not na(kz._last_box_top) and not na(kz._last_box_bottom) and not na(kz._last_session_start)
+                float _r = kz._last_box_top - kz._last_box_bottom
+                float _f1 = kz._last_box_top
+                float _f764 = kz._last_box_top - 0.236 * _r
+                float _f5 = kz._last_box_top - 0.5 * _r
+                float _f236 = kz._last_box_top - 0.764 * _r
+                float _f0 = kz._last_box_bottom
+                if kz._fib_lines.size() >= 5
+                    kz._fib_lines.get(0).set_xy1(kz._last_session_start, _f1)
+                    kz._fib_lines.get(0).set_xy2(kz._last_session_end, _f1)
+                    kz._fib_lines.get(1).set_xy1(kz._last_session_start, _f764)
+                    kz._fib_lines.get(1).set_xy2(kz._last_session_end, _f764)
+                    kz._fib_lines.get(2).set_xy1(kz._last_session_start, _f5)
+                    kz._fib_lines.get(2).set_xy2(kz._last_session_end, _f5)
+                    kz._fib_lines.get(3).set_xy1(kz._last_session_start, _f236)
+                    kz._fib_lines.get(3).set_xy2(kz._last_session_end, _f236)
+                    kz._fib_lines.get(4).set_xy1(kz._last_session_start, _f0)
+                    kz._fib_lines.get(4).set_xy2(kz._last_session_end, _f0)
+                    if kz._fib_fill_boxes.size() >= 4
+                        kz._fib_fill_boxes.get(0).set_left(kz._last_session_start)
+                        kz._fib_fill_boxes.get(0).set_top(_f1)
+                        kz._fib_fill_boxes.get(0).set_right(kz._last_session_end)
+                        kz._fib_fill_boxes.get(0).set_bottom(_f764)
+                        kz._fib_fill_boxes.get(1).set_left(kz._last_session_start)
+                        kz._fib_fill_boxes.get(1).set_top(_f764)
+                        kz._fib_fill_boxes.get(1).set_right(kz._last_session_end)
+                        kz._fib_fill_boxes.get(1).set_bottom(_f5)
+                        kz._fib_fill_boxes.get(2).set_left(kz._last_session_start)
+                        kz._fib_fill_boxes.get(2).set_top(_f5)
+                        kz._fib_fill_boxes.get(2).set_right(kz._last_session_end)
+                        kz._fib_fill_boxes.get(2).set_bottom(_f236)
+                        kz._fib_fill_boxes.get(3).set_left(kz._last_session_start)
+                        kz._fib_fill_boxes.get(3).set_top(_f236)
+                        kz._fib_fill_boxes.get(3).set_right(kz._last_session_end)
+                        kz._fib_fill_boxes.get(3).set_bottom(_f0)
+                else
+                    array.push(kz._fib_lines, line.new(kz._last_session_start, _f1, kz._last_session_end, _f1, xloc = xloc.bar_time, color = color.black, width = 1))
+                    array.push(kz._fib_lines, line.new(kz._last_session_start, _f764, kz._last_session_end, _f764, xloc = xloc.bar_time, color = color.blue, width = 1))
+                    array.push(kz._fib_lines, line.new(kz._last_session_start, _f5, kz._last_session_end, _f5, xloc = xloc.bar_time, color = color.red, width = 1))
+                    array.push(kz._fib_lines, line.new(kz._last_session_start, _f236, kz._last_session_end, _f236, xloc = xloc.bar_time, color = color.red, width = 1))
+                    array.push(kz._fib_lines, line.new(kz._last_session_start, _f0, kz._last_session_end, _f0, xloc = xloc.bar_time, color = color.black, width = 1))
+                    array.push(kz._fib_fill_boxes, box.new(kz._last_session_start, _f1, kz._last_session_end, _f764, xloc = xloc.bar_time, border_color = na, bgcolor = color.new(color.blue, 75)))
+                    array.push(kz._fib_fill_boxes, box.new(kz._last_session_start, _f764, kz._last_session_end, _f5, xloc = xloc.bar_time, border_color = na, bgcolor = color.new(color.blue, 90)))
+                    array.push(kz._fib_fill_boxes, box.new(kz._last_session_start, _f5, kz._last_session_end, _f236, xloc = xloc.bar_time, border_color = na, bgcolor = color.new(color.red, 90)))
+                    array.push(kz._fib_fill_boxes, box.new(kz._last_session_start, _f236, kz._last_session_end, _f0, xloc = xloc.bar_time, border_color = na, bgcolor = color.new(color.red, 75)))
+    if ict_show_pivots and boxCount > 0
+        for i = 0 to boxCount - 1 by 1
+            if not ict_ext_current or i == 0
+                kzHiValid = kz._hi_valid.get(i)
+                if ict_ext_past or kzHiValid
+                    kz._hi_line.get(i).set_x2(time)
+                    if ict_show_labels and ict_label_right
+                        kz._hi_label.get(i).set_x(time)
+                if kzHiValid and high > kz._hi_line.get(i).get_y1()
+                    kz._hi_valid.set(i, false)
+                    if ict_show_labels and ict_label_right
+                        kz._hi_label.get(i).set_style(label.style_label_down)
+                else if ict_use_cutoff ? ict_t_co : false
+                    kz._hi_valid.set(i, false)
+                kzLoValid = kz._lo_valid.get(i)
+                if ict_ext_past or kzLoValid
+                    kz._lo_line.get(i).set_x2(time)
+                    if ict_show_labels and ict_label_right
+                        kz._lo_label.get(i).set_x(time)
+                if kzLoValid and low < kz._lo_line.get(i).get_y1()
+                    kz._lo_valid.set(i, false)
+                    if ict_show_labels and ict_label_right
+                        kz._lo_label.get(i).set_style(label.style_label_up)
+                else if ict_use_cutoff ? ict_t_co : false
+                    kz._lo_valid.set(i, false)
+                if ict_show_midpoints and not t
+                    if ict_stop_midpoints ? kz._md_valid.get(i) : true
+                        kz._md_line.get(i).set_x2(time)
+                        if kz._md_valid.get(i) and low <= kz._md_line.get(i).get_y1() and high >= kz._md_line.get(i).get_y1()
+                            kz._md_valid.set(i, false)
+            else
+                break
+
+method ict_manage_kz(ict_kz_helper this) =>
+    ict_kz kz = this._kz
+    c = this.c
+    string box_txt = this.box_txt
+    string hi_txt = this.hi_txt
+    string lo_txt = this.lo_txt
+    string eff_session = ict_get_effective_session(this.session, ict_is_us_dst())
+    if ict_tf_limit_is_equal_or_more_chart_tf
+        t = not na(time("", eff_session, ict_gmt_tz))
+        t_prev = not na(time("", eff_session, ict_gmt_tz, bars_back = 1))
+        if t and not t_prev
+            if not na(kz._preview_box)
+                kz._preview_box.delete()
+                kz._preview_box := na
+            int _dow = dayofweek(time, ict_gmt_tz)
+            bool _is_weekday = _dow >= 2 and _dow <= 6
+            bool _show_this_kz = ict_show_kz and (not ict_kz_weekdays_only or _is_weekday)
+            _c = ict_get_box_color(c)
+            _t = ict_get_text_color(c)
+            color _bg = _show_this_kz ? color.new(c, 85) : na
+            color _txt = _show_this_kz and ict_show_kz_text ? color.new(c, 80) : na
+            kz._box.unshift(box.new(time, high, time, low, xloc = xloc.bar_time, border_color = _show_this_kz ? _c : na, bgcolor = _bg, text = _show_this_kz and ict_show_kz_text ? box_txt : na, text_color = _txt))
+            if ict_show_pivots
+                kz._hi_line.unshift(line.new(time, high, time, high, xloc = xloc.bar_time, style = ict_kzp_style, color = c, width = ict_kzp_width))
+                kz._lo_line.unshift(line.new(time, low, time, low, xloc = xloc.bar_time, style = ict_kzp_style, color = c, width = ict_kzp_width))
+                if ict_show_midpoints
+                    kz._md_line.unshift(line.new(time, math.avg(high, low), time, math.avg(high, low), xloc = xloc.bar_time, style = ict_kzm_style, color = c, width = ict_kzm_width))
+                    array.unshift(kz._md_valid, true)
+                array.unshift(kz._hi_valid, true)
+                array.unshift(kz._lo_valid, true)
+                if ict_show_labels
+                    _hi_txt = ict_label_price ? str.format('{0} ({1})', hi_txt, high) : hi_txt
+                    _lo_txt = ict_label_price ? str.format('{0} ({1})', lo_txt, low) : lo_txt
+                    if ict_label_right
+                        kz._hi_label.unshift(label.new(time, high, _hi_txt, xloc = xloc.bar_time, color = ict_transparent, textcolor = ict_txt_color, style = label.style_label_left, size = ict_lbl_size))
+                        kz._lo_label.unshift(label.new(time, low, _lo_txt, xloc = xloc.bar_time, color = ict_transparent, textcolor = ict_txt_color, style = label.style_label_left, size = ict_lbl_size))
+                    else
+                        kz._hi_label.unshift(label.new(time, high, _hi_txt, xloc = xloc.bar_time, color = ict_transparent, textcolor = ict_txt_color, style = label.style_label_down, size = ict_lbl_size))
+                        kz._lo_label.unshift(label.new(time, low, _lo_txt, xloc = xloc.bar_time, color = ict_transparent, textcolor = ict_txt_color, style = label.style_label_up, size = ict_lbl_size))
+            if t and not t_prev and ict_show_kz_fib
+                if kz._fib_lines.size() > 0
+                    for _j = 0 to kz._fib_lines.size() - 1
+                        line.delete(kz._fib_lines.get(_j))
+                    array.clear(kz._fib_lines)
+                if kz._fib_fill_boxes.size() > 0
+                    for _j = 0 to kz._fib_fill_boxes.size() - 1
+                        box.delete(kz._fib_fill_boxes.get(_j))
+                    array.clear(kz._fib_fill_boxes)
+                float _r0 = high - low
+                float _f1_0 = high
+                float _f764_0 = high - 0.236 * _r0
+                float _f5_0 = high - 0.5 * _r0
+                float _f236_0 = high - 0.764 * _r0
+                float _f0_0 = low
+                array.push(kz._fib_lines, line.new(time, _f1_0, time, _f1_0, xloc = xloc.bar_time, color = color.black, width = 1))
+                array.push(kz._fib_lines, line.new(time, _f764_0, time, _f764_0, xloc = xloc.bar_time, color = color.blue, width = 1))
+                array.push(kz._fib_lines, line.new(time, _f5_0, time, _f5_0, xloc = xloc.bar_time, color = color.red, width = 1))
+                array.push(kz._fib_lines, line.new(time, _f236_0, time, _f236_0, xloc = xloc.bar_time, color = color.red, width = 1))
+                array.push(kz._fib_lines, line.new(time, _f0_0, time, _f0_0, xloc = xloc.bar_time, color = color.black, width = 1))
+            ict_del_kz(kz)
+        ict_adjust_in_kz(kz, t)
+        ict_adjust_out_kz(kz, t, t_prev)
+        next_start = not na(kz._last_session_start) ? kz._last_session_start + 24 * 3600000 : na
+        next_end = not na(kz._last_session_end) ? kz._last_session_end + 24 * 3600000 : na
+        in_preview = not na(next_start) and time >= next_start - int(2 * ict_one_hour_ms) and time < next_start
+        int _next_dow = not na(next_start) ? dayofweek(next_start, ict_gmt_tz) : 0
+        bool _next_weekday = _next_dow >= 2 and _next_dow <= 6
+        bool _show_preview = ict_show_kz and (not ict_kz_weekdays_only or _next_weekday) and not na(kz._last_box_top) and not na(kz._last_box_bottom)
+        if in_preview and _show_preview
+            if na(kz._preview_box)
+                _c = ict_get_box_color(c)
+                string _preview_txt = "Seek\n ICT chart pattern\nover the current &\nupcoming Killzones."
+                kz._preview_box := box.new(int(next_start), kz._last_box_top, int(next_end), kz._last_box_bottom, xloc = xloc.bar_time, border_color = _c, bgcolor = color.new(color.green, 60), text = ict_show_kz_text ? _preview_txt : na, text_color = color.new(color.black, 80))
+        else if not in_preview and not na(kz._preview_box)
+            kz._preview_box.delete()
+            kz._preview_box := na
+
+for [_, value] in ict_kz
+    ict_manage_kz(value)
+
+plot(na, color=color.orange, linewidth=1, title="")  // EMA7 非表示
+ema20_plot = plot(show_ema and not is_4hr_or_higher ? ema20 : na, color=color.green, linewidth=2, title="EMA20")
+ema50_plot = plot(show_ema and not is_4hr_or_higher ? ema50 : na, color=color.red, linewidth=2, title="EMA50")
+ema100_plot = plot(show_ema and not is_4hr_or_higher ? ema100 : na, color=color.blue, linewidth=2, title="EMA100")
+plot(show_ema and not is_4hr_or_higher ? ema200 : na, color=color.purple, linewidth=3, title="EMA200")
+plot(show_ema and not is_4hr_or_higher ? ema400 : na, color=color.gray, linewidth=2, title="EMA400")
+
+ict_dwm()
+ict_vlines()
+ict_hz_lines()
+
+ict_new_dow_time = ict_dow_xloc == 'Midday' ? time - timeframe.in_seconds("D") / 2 * 1000 : time
+ict_new_day = dayofweek(ict_new_dow_time, ict_gmt_tz) != dayofweek(ict_new_dow_time, ict_gmt_tz)[1]
+var ict_dow_top = ict_dow_yloc == 'Top'
+
+var ict_saturday = "SATURDAY"
+var ict_sunday = "SUNDAY"
+var ict_monday = "MONDAY"
+var ict_tuesday = "TUESDAY"
+var ict_wednesday = "WEDNESDAY"
+var ict_thursday = "THURSDAY"
+var ict_friday = "FRIDAY"
+
+plotchar(ict_dow_labels and not show_tables_15m_or_higher and timeframe.isintraday and dayofweek(ict_new_dow_time, ict_gmt_tz) == 1 and ict_new_day and not ict_dow_hide_wknd, location = ict_dow_top ? location.top : location.bottom, char = '', textcolor = ict_txt_color, text = ict_sunday)
+plotchar(ict_dow_labels and not show_tables_15m_or_higher and timeframe.isintraday and dayofweek(ict_new_dow_time, ict_gmt_tz) == 2 and ict_new_day, location = ict_dow_top ? location.top : location.bottom, char = '', textcolor = ict_txt_color, text = ict_monday)
+plotchar(ict_dow_labels and not show_tables_15m_or_higher and timeframe.isintraday and dayofweek(ict_new_dow_time, ict_gmt_tz) == 3 and ict_new_day, location = ict_dow_top ? location.top : location.bottom, char = '', textcolor = ict_txt_color, text = ict_tuesday)
+plotchar(ict_dow_labels and not show_tables_15m_or_higher and timeframe.isintraday and dayofweek(ict_new_dow_time, ict_gmt_tz) == 4 and ict_new_day, location = ict_dow_top ? location.top : location.bottom, char = '', textcolor = ict_txt_color, text = ict_wednesday)
+plotchar(ict_dow_labels and not show_tables_15m_or_higher and timeframe.isintraday and dayofweek(ict_new_dow_time, ict_gmt_tz) == 5 and ict_new_day, location = ict_dow_top ? location.top : location.bottom, char = '', textcolor = ict_txt_color, text = ict_thursday)
+plotchar(ict_dow_labels and not show_tables_15m_or_higher and timeframe.isintraday and dayofweek(ict_new_dow_time, ict_gmt_tz) == 6 and ict_new_day, location = ict_dow_top ? location.top : location.bottom, char = '', textcolor = ict_txt_color, text = ict_friday)
+plotchar(ict_dow_labels and not show_tables_15m_or_higher and timeframe.isintraday and dayofweek(ict_new_dow_time, ict_gmt_tz) == 7 and ict_new_day and not ict_dow_hide_wknd, location = ict_dow_top ? location.top : location.bottom, char = '', textcolor = ict_txt_color, text = ict_saturday)
+
+ict_get_min_days_stored() =>
+    store = array.new_int()
+    for [_, value] in ict_kz
+        int tmpStoreSize = value._kz._range_store.size()
+        if tmpStoreSize > 0
+            store.push(tmpStoreSize)
+    store.min()
+
+method ict_set_table(table tbl, ict_kz kz, int row, string txt, bool t, color col) =>
+    table.cell(tbl, 0, row, txt, text_size = ict_range_size, bgcolor = color.new(col, 60), text_color = ict_txt_color)
+    table.cell(tbl, 1, row, str.tostring(kz._range_current), text_size = ict_range_size, bgcolor = t ? color.new(col, 60) : na, text_color = ict_txt_color)
+    if ict_show_range_avg
+        table.cell(tbl, 2, row, str.tostring(kz._range_store.avg()), text_size = ict_range_size, text_color = ict_txt_color)
+
+if ict_show_range and barstate.islast
+    var ict_tbl = table.new(ict_range_pos, 10, 10, color.new(chart.bg_color, 60), chart.fg_color, 0, chart.fg_color, 1)
+    table.cell(ict_tbl, 0, 0, "Killzone", text_size = ict_range_size, text_color = ict_txt_color)
+    table.cell(ict_tbl, 1, 0, "Range", text_size = ict_range_size, text_color = ict_txt_color)
+    if ict_show_range_avg
+        table.cell(ict_tbl, 2, 0, "Avg (" + str.tostring(ict_get_min_days_stored()) + ")", text_size = ict_range_size, text_color = ict_txt_color)
+    for [index, value] in ict_kz
+        ict_set_table(ict_tbl, value._kz, index + 1, value.box_txt, not na(time("", ict_get_effective_session(value.session, ict_is_us_dst()), ict_gmt_tz)), value.c)
+// ---------------------------------------- ICT Core Logic --------------------------------------------------
+
+
+bool swiggy_long_cond  = not is_4hr_or_higher and ema100 < ema50 and ema24 < ema8
+bool swiggy_short_cond = not is_4hr_or_higher and ema100 > ema50 and ema24 > ema8
+
+bool swiggy_long_just  = swiggy_long_cond and not swiggy_long_cond[1]
+bool swiggy_short_just = swiggy_short_cond and not swiggy_short_cond[1]
+
+bool swiggy_bearish_order = not is_4hr_or_higher and ema14 < ema50 and ema50 < ema100 and ema100 < ema200
+bool swiggy_bullish_order = not is_4hr_or_higher and ema14 > ema50 and ema50 > ema100 and ema100 > ema200
+bool swiggy_long_first_cross  = ema24 < ema8 and ema24[1] >= ema8[1]
+bool swiggy_short_first_cross  = ema24 > ema8 and ema24[1] <= ema8[1]
+
+var bool swiggy_long_once_shown  = false
+var bool swiggy_short_once_shown = false
+if not swiggy_bearish_order
+    swiggy_long_once_shown := false
+if not swiggy_bullish_order
+    swiggy_short_once_shown := false
+
+bool swiggy_long_once_cond  = swiggy_bearish_order and swiggy_long_first_cross and not swiggy_long_once_shown
+bool swiggy_short_once_cond = swiggy_bullish_order and swiggy_short_first_cross and not swiggy_short_once_shown
+
+color _swiggy_long_bg  = color.new(swiggy_invert_colors ? color.red : color.blue, 20)
+color _swiggy_short_bg = color.new(swiggy_invert_colors ? color.blue : color.red, 20)
+
+if showSwiggyLabels and (swiggy_long_just or swiggy_long_once_cond)
+    label.new(bar_index, low - label_atr_offset * 1.2, "Swiggy\nLONG", style=label.style_label_up, size=size.tiny, color=_swiggy_long_bg, textcolor=color.white)
+    if swiggy_long_once_cond
+        swiggy_long_once_shown := true
+
+if showSwiggyLabels and (swiggy_short_just or swiggy_short_once_cond)
+    label.new(bar_index, high + label_atr_offset * 1.2, "Swiggy\nSHORT", style=label.style_label_down, size=size.tiny, color=_swiggy_short_bg, textcolor=color.white)
+    if swiggy_short_once_cond
+        swiggy_short_once_shown := true
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Swiggy Alerts
+// ═══════════════════════════════════════════════════════════════════════════
+bool alert_swiggy_long  = showSwiggyLabels and (swiggy_long_just or swiggy_long_once_cond)
+bool alert_swiggy_short = showSwiggyLabels and (swiggy_short_just or swiggy_short_once_cond)
+
+string _alert_interval = timeframe.period
+
+// 1) All Swiggy LONG/SHORT
+bool _any_swiggy = alert_swiggy_long or alert_swiggy_short
+if _any_swiggy
+    string _long_part  = alert_swiggy_long  ? "LONG: Swiggy" : ""
+    string _short_part = alert_swiggy_short ? "SHORT: Swiggy" : ""
+    string _msg_all = _long_part + (_long_part != "" and _short_part != "" ? " | " : "") + _short_part + " | " + syminfo.ticker + " | " + _alert_interval
+    alert(_msg_all, alert.freq_once_per_bar)
+
+if alert_swiggy_long
+    alert("LONG Swiggy " + syminfo.ticker + " " + _alert_interval, alert.freq_once_per_bar)
+
+if alert_swiggy_short
+    alert("SHORT Swiggy " + syminfo.ticker + " " + _alert_interval, alert.freq_once_per_bar)
+
+alertcondition(_any_swiggy, "Swiggy LONG/SHORT (All)", "{{ticker}} | {{interval}}")
+alertcondition(alert_swiggy_long, "Swiggy LONG only", "LONG | {{ticker}} | {{interval}}")
+alertcondition(alert_swiggy_short, "Swiggy SHORT only", "SHORT | {{ticker}} | {{interval}}")

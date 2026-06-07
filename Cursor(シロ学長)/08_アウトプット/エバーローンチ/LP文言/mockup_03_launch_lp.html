@@ -1,0 +1,1224 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>仮想通貨プレミアムロジック｜個別ロードマップ作成会</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'Hiragino Kaku Gothic ProN', 'Meiryo', sans-serif;
+    background: #fff;
+    max-width: 480px;
+    margin: 0 auto;
+    color: #333;
+    font-size: 15px;
+    line-height: 1.7;
+  }
+
+  /* ===== 共通 ===== */
+  .section { padding: 28px 18px; }
+  .section-white { background: #fff; }
+  .section-light { background: #f9f6f0; }
+  .section-dark { background: #1a237e; color: #fff; }
+  .center { text-align: center; }
+
+  .section-title {
+    text-align: center;
+    font-size: 18px;
+    font-weight: 900;
+    color: #1a237e;
+    margin-bottom: 20px;
+    padding-bottom: 10px;
+    border-bottom: 3px solid #ffd700;
+  }
+
+  /* ===== HERO ===== */
+  .hero {
+    background: linear-gradient(160deg, #0d1b6e 0%, #1a237e 40%, #283593 100%);
+    padding: 0 0 0;
+    position: relative;
+    overflow: hidden;
+  }
+  .hero-alert {
+    background: #e53935;
+    color: #fff;
+    text-align: center;
+    padding: 10px 16px;
+    font-size: 14px;
+    font-weight: 900;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    letter-spacing: 0.5px;
+  }
+  .hero-alert .alert-icon {
+    background: #fff;
+    color: #e53935;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    font-weight: 900;
+    flex-shrink: 0;
+  }
+  .hero-main {
+    padding: 24px 18px 20px;
+    text-align: center;
+    position: relative;
+  }
+  .hero-main .product-name {
+    color: #ffd700;
+    font-size: 32px;
+    font-weight: 900;
+    line-height: 1.2;
+    text-shadow: 2px 2px 8px rgba(0,0,0,0.5);
+    margin-bottom: 6px;
+  }
+  .hero-main .product-sub {
+    color: rgba(255,255,255,0.85);
+    font-size: 14px;
+    margin-bottom: 16px;
+  }
+  .hero-deadline {
+    background: rgba(229,57,53,0.9);
+    color: #fff;
+    border-radius: 8px;
+    padding: 10px 14px;
+    font-size: 14px;
+    font-weight: bold;
+    margin-bottom: 16px;
+    text-align: center;
+  }
+  .hero-deadline span { font-size: 18px; font-weight: 900; }
+
+  /* カウントダウン */
+  .countdown {
+    display: flex;
+    justify-content: center;
+    gap: 8px;
+    margin-bottom: 20px;
+  }
+  .countdown-unit {
+    background: #1a1a2e;
+    border: 2px solid #ffd700;
+    border-radius: 6px;
+    padding: 8px 12px;
+    text-align: center;
+    min-width: 62px;
+  }
+  .countdown-unit .num {
+    color: #ffd700;
+    font-size: 28px;
+    font-weight: 900;
+    line-height: 1;
+    display: block;
+  }
+  .countdown-unit .unit-label {
+    color: rgba(255,255,255,0.7);
+    font-size: 11px;
+    margin-top: 2px;
+  }
+
+  /* 動画エリア */
+  .video-area {
+    background: #000;
+    position: relative;
+    width: 100%;
+    aspect-ratio: 16/9;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+  }
+  .video-thumb {
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(135deg, #0d1b6e, #283593);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    overflow: hidden;
+  }
+  .video-thumb .thumb-text {
+    text-align: center;
+    color: #fff;
+    padding: 16px;
+    z-index: 2;
+    position: relative;
+  }
+  .video-thumb .thumb-text .big {
+    font-size: 18px;
+    font-weight: 900;
+    line-height: 1.3;
+    margin-bottom: 4px;
+  }
+  .video-thumb .thumb-text .big .red { color: #ff5252; }
+  .video-thumb .thumb-text .big .yellow { color: #ffd700; }
+  .video-thumb .thumb-text .small {
+    font-size: 13px;
+    color: rgba(255,255,255,0.8);
+  }
+  .play-btn {
+    position: absolute;
+    width: 60px;
+    height: 60px;
+    background: rgba(229,57,53,0.9);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 3;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.5);
+  }
+  .play-btn::after {
+    content: '';
+    border-left: 22px solid #fff;
+    border-top: 14px solid transparent;
+    border-bottom: 14px solid transparent;
+    margin-left: 5px;
+  }
+  .video-hint {
+    text-align: center;
+    padding: 10px;
+    font-size: 13px;
+    color: rgba(255,255,255,0.7);
+    background: #111;
+  }
+
+  /* ===== CTAボタン ===== */
+  .cta-wrap {
+    padding: 20px 14px 16px;
+    text-align: center;
+  }
+  .cta-btn {
+    display: block;
+    background: linear-gradient(135deg, #2e7d32, #43a047);
+    color: #fff;
+    font-size: 17px;
+    font-weight: 900;
+    padding: 20px 24px;
+    border-radius: 50px;
+    text-decoration: none;
+    box-shadow: 0 6px 24px rgba(46,125,50,0.45);
+    line-height: 1.3;
+    letter-spacing: 0.5px;
+  }
+  .cta-btn .btn-sub {
+    display: block;
+    font-size: 12px;
+    font-weight: normal;
+    opacity: 0.9;
+    margin-top: 4px;
+  }
+  .cta-small {
+    font-size: 12px;
+    color: #888;
+    text-align: center;
+    margin-top: 6px;
+    padding-bottom: 8px;
+  }
+
+  /* ===== 章リスト ===== */
+  .chapter-list {
+    list-style: none;
+  }
+  .chapter-list li {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 12px 0;
+    border-bottom: 1px solid #e0e0e0;
+    font-size: 14px;
+    line-height: 1.5;
+  }
+  .chapter-list li:last-child { border-bottom: none; }
+  .chapter-list .ch-num {
+    background: #e53935;
+    color: #fff;
+    font-size: 11px;
+    font-weight: 900;
+    padding: 3px 8px;
+    border-radius: 4px;
+    white-space: nowrap;
+    flex-shrink: 0;
+    margin-top: 2px;
+  }
+  .chapter-list .ch-text { color: #1a1a1a; }
+  .chapter-list .ch-text strong { color: #e53935; }
+
+  /* ===== 招待バナー ===== */
+  .invite-banner {
+    background: linear-gradient(135deg, #1a237e, #283593);
+    padding: 28px 20px;
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+  }
+  .invite-banner::before {
+    content: '';
+    position: absolute; top: -40px; right: -40px;
+    width: 140px; height: 140px;
+    background: rgba(255,215,0,0.1);
+    border-radius: 50%;
+  }
+  .invite-banner .invite-label {
+    display: inline-block;
+    background: #ffd700;
+    color: #1a237e;
+    font-size: 14px;
+    font-weight: 900;
+    padding: 6px 20px;
+    border-radius: 30px;
+    margin-bottom: 14px;
+  }
+  .invite-banner h2 {
+    color: #ffd700;
+    font-size: 26px;
+    font-weight: 900;
+    line-height: 1.3;
+    margin-bottom: 4px;
+    text-shadow: 1px 2px 6px rgba(0,0,0,0.3);
+  }
+  .invite-banner .sub {
+    color: rgba(255,255,255,0.85);
+    font-size: 13px;
+  }
+
+  /* ===== ペインポイント ===== */
+  .pain-intro {
+    text-align: center;
+    padding: 24px 20px 16px;
+  }
+  .pain-intro h2 {
+    font-size: 20px;
+    font-weight: 900;
+    color: #1a1a1a;
+    line-height: 1.5;
+    margin-bottom: 10px;
+  }
+  .pain-intro h2 .line-through {
+    text-decoration: line-through;
+    color: #999;
+    font-size: 16px;
+  }
+  .pain-intro p {
+    font-size: 14px;
+    color: #555;
+  }
+
+  .solution-box {
+    background: #fff3e0;
+    border: 2px solid #ff9800;
+    border-radius: 12px;
+    padding: 20px 18px;
+    margin: 0 16px 24px;
+    text-align: center;
+  }
+  .solution-box .sol-label {
+    color: #e65100;
+    font-size: 12px;
+    font-weight: bold;
+    margin-bottom: 10px;
+  }
+  .solution-box h3 {
+    font-size: 18px;
+    font-weight: 900;
+    color: #1a1a1a;
+    line-height: 1.4;
+  }
+  .solution-box h3 strong { color: #e53935; font-size: 22px; }
+
+  /* ===== チェックリスト ===== */
+  .check-list {
+    list-style: none;
+  }
+  .check-list li {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 10px 0;
+    border-bottom: 1px dashed #e0e0e0;
+    font-size: 14px;
+    line-height: 1.5;
+  }
+  .check-list li:last-child { border-bottom: none; }
+  .check-list .check-icon { color: #e53935; font-size: 18px; flex-shrink: 0; margin-top: 1px; }
+  .check-list .check-icon.green { color: #2e7d32; }
+  .check-list strong { color: #e53935; }
+
+  /* ===== 悩みビジュアルカード ===== */
+  .pain-cards {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 0 16px 24px;
+  }
+  .pain-card {
+    background: #f5f5f5;
+    border-radius: 10px;
+    padding: 14px 16px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .pain-card .check { font-size: 22px; color: #e53935; flex-shrink: 0; }
+  .pain-card .pain-text { font-size: 14px; line-height: 1.5; }
+  .pain-card .pain-text strong { color: #e53935; }
+
+  /* ===== 実績 ===== */
+  .result-intro {
+    background: linear-gradient(135deg, #ff8f00, #ffa000);
+    padding: 16px 20px;
+    text-align: center;
+    color: #fff;
+  }
+  .result-intro .period { font-size: 16px; font-weight: bold; margin-bottom: 4px; }
+  .result-intro h3 { font-size: 22px; font-weight: 900; }
+
+  .result-cards {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+  }
+  .result-card {
+    background: #fff;
+    border-bottom: 1px solid #eee;
+    padding: 20px 18px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+  .result-card .card-left {
+    width: 70px;
+    flex-shrink: 0;
+    text-align: center;
+  }
+  .result-card .card-left .avatar {
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #c8e6c9, #a5d6a7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 28px;
+    margin: 0 auto 6px;
+    border: 2px solid #4caf50;
+  }
+  .result-card .card-right { flex: 1; }
+  .result-card .card-right .condition {
+    font-size: 12px;
+    color: #666;
+    margin-bottom: 4px;
+  }
+  .result-card .card-right .amount {
+    font-size: 22px;
+    font-weight: 900;
+    color: #e53935;
+  }
+  .result-card .card-right .check-mark {
+    color: #2e7d32;
+    font-size: 16px;
+    font-weight: bold;
+    margin-bottom: 2px;
+  }
+
+  /* ===== ロードマップ画像（月100万訴求）===== */
+  .roadmap-cta {
+    background: linear-gradient(135deg, #ff8f00, #ffa000, #ff6f00);
+    padding: 28px 20px;
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+  }
+  .roadmap-cta::before {
+    content: '今回だけ！';
+    position: absolute;
+    top: 14px; left: 16px;
+    background: #fff;
+    color: #ff6f00;
+    font-size: 14px;
+    font-weight: 900;
+    padding: 4px 14px;
+    border-radius: 20px;
+    border: 2px solid #ff6f00;
+  }
+  .roadmap-cta h2 {
+    color: #fff;
+    font-size: 22px;
+    font-weight: 900;
+    line-height: 1.4;
+    margin-top: 10px;
+    text-shadow: 1px 2px 4px rgba(0,0,0,0.2);
+  }
+  .roadmap-cta h2 .big { font-size: 28px; display: block; }
+  .roadmap-cta .sub {
+    color: rgba(255,255,255,0.9);
+    font-size: 14px;
+    margin-top: 8px;
+  }
+
+  /* ===== 特典 ===== */
+  .tokuten-header {
+    background: linear-gradient(135deg, #ff8f00, #ffa000);
+    padding: 16px 20px;
+    text-align: center;
+  }
+  .tokuten-header .limited-label {
+    background: #fff;
+    color: #ff6f00;
+    font-size: 12px;
+    font-weight: 900;
+    padding: 4px 16px;
+    border-radius: 20px;
+    margin-bottom: 10px;
+    display: inline-block;
+  }
+  .tokuten-header h3 {
+    color: #fff;
+    font-size: 24px;
+    font-weight: 900;
+    line-height: 1.3;
+  }
+  .tokuten-header .sub {
+    color: rgba(255,255,255,0.9);
+    font-size: 13px;
+    margin-top: 6px;
+  }
+  .tokuten-list {
+    list-style: none;
+    padding: 0 16px;
+  }
+  .tokuten-list li {
+    background: #fff3e0;
+    border-left: 4px solid #ff9800;
+    border-radius: 0 8px 8px 0;
+    margin: 8px 0;
+    padding: 12px 14px;
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+  }
+  .tokuten-list .t-num {
+    background: #ff9800;
+    color: #fff;
+    font-size: 13px;
+    font-weight: 900;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+  .tokuten-list .t-content .t-tag {
+    font-size: 10px;
+    color: #ff6f00;
+    font-weight: bold;
+    margin-bottom: 2px;
+  }
+  .tokuten-list .t-content .t-title {
+    font-size: 14px;
+    font-weight: 900;
+    color: #1a1a1a;
+  }
+
+  /* ===== こんな方におすすめ ===== */
+  .recommend-box {
+    border: 2px solid #1a237e;
+    border-radius: 12px;
+    overflow: hidden;
+    margin: 0 0 20px;
+  }
+  .recommend-box .box-header {
+    background: #1a237e;
+    color: #ffd700;
+    text-align: center;
+    padding: 12px;
+    font-size: 16px;
+    font-weight: 900;
+  }
+  .recommend-box .box-body {
+    padding: 16px;
+  }
+
+  /* 対象外BOX */
+  .not-target-box {
+    border: 2px solid #e53935;
+    border-radius: 12px;
+    overflow: hidden;
+    margin: 0 0 20px;
+  }
+  .not-target-box .box-header {
+    background: #e53935;
+    color: #fff;
+    text-align: center;
+    padding: 12px;
+    font-size: 16px;
+    font-weight: 900;
+  }
+  .not-target-box .box-body {
+    padding: 16px;
+  }
+  .not-target-box .warn-note {
+    font-size: 12px;
+    color: #888;
+    text-align: center;
+    margin-top: 10px;
+  }
+
+  /* ===== STEP流れ ===== */
+  .steps-section {
+    background: #f9f6f0;
+    padding: 28px 18px;
+  }
+  .step-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+    margin-bottom: 24px;
+    background: #fff;
+    border-radius: 12px;
+    padding: 18px 16px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+  }
+  .step-item:last-child { margin-bottom: 0; }
+  .step-item .step-icon {
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    background: #1a237e;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    font-size: 22px;
+  }
+  .step-item .step-text h4 {
+    font-size: 16px;
+    font-weight: 900;
+    color: #1a237e;
+    margin-bottom: 4px;
+  }
+  .step-item .step-text p {
+    font-size: 13px;
+    color: #666;
+    line-height: 1.6;
+  }
+  .step-item .step-text .note {
+    font-size: 12px;
+    color: #e53935;
+    margin-top: 4px;
+  }
+
+  /* ===== 声セクション ===== */
+  .voice-section { background: #fff; }
+  .voice-card {
+    background: #f9f9f9;
+    border-radius: 12px;
+    padding: 18px;
+    margin-bottom: 16px;
+  }
+  .voice-card:last-child { margin-bottom: 0; }
+  .voice-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 12px;
+  }
+  .voice-avatar {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #c8e6c9, #a5d6a7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 22px;
+    flex-shrink: 0;
+  }
+  .voice-meta .name { font-size: 14px; font-weight: 900; color: #1a1a1a; }
+  .voice-meta .tag {
+    display: inline-block;
+    background: #e8f5e9;
+    color: #2e7d32;
+    font-size: 11px;
+    font-weight: bold;
+    padding: 2px 10px;
+    border-radius: 20px;
+    margin-top: 2px;
+  }
+  .voice-body {
+    font-size: 13px;
+    color: #444;
+    line-height: 1.7;
+  }
+  .voice-body .voice-quote {
+    font-size: 14px;
+    font-weight: bold;
+    color: #1a237e;
+    font-style: italic;
+    margin-bottom: 8px;
+    padding-left: 10px;
+    border-left: 3px solid #1a237e;
+  }
+
+  /* Q&Aボイス */
+  .qa-voice {
+    background: #f9f9f9;
+    border-radius: 12px;
+    padding: 18px;
+    margin-bottom: 16px;
+  }
+  .qa-item { margin-bottom: 14px; }
+  .qa-item:last-child { margin-bottom: 0; }
+  .qa-q {
+    font-size: 13px;
+    font-weight: 900;
+    color: #1a237e;
+    background: #e8eaf6;
+    padding: 8px 12px;
+    border-radius: 6px;
+    margin-bottom: 8px;
+  }
+  .qa-a {
+    font-size: 13px;
+    color: #444;
+    line-height: 1.7;
+    padding-left: 10px;
+    border-left: 3px solid #9fa8da;
+  }
+  .qa-a strong { color: #e53935; }
+
+  /* ===== 無料の理由 ===== */
+  .why-free {
+    background: #fff8e1;
+    padding: 28px 18px;
+  }
+  .why-free-inner {
+    background: #fff;
+    border-radius: 12px;
+    padding: 20px 18px;
+  }
+  .why-free-inner .shiro-profile {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-bottom: 18px;
+    padding-bottom: 16px;
+    border-bottom: 2px dashed #f0e0b0;
+  }
+  .shiro-icon {
+    width: 70px;
+    height: 70px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #e8eaf6, #c5cae9);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 36px;
+    flex-shrink: 0;
+    border: 3px solid #ffd700;
+  }
+  .shiro-profile-text .name {
+    font-size: 16px;
+    font-weight: 900;
+    color: #1a237e;
+  }
+  .shiro-profile-text .career {
+    font-size: 12px;
+    color: #666;
+    line-height: 1.6;
+  }
+  .why-free-body { font-size: 14px; color: #444; line-height: 1.8; }
+  .why-free-body p + p { margin-top: 12px; }
+  .why-free-body strong { color: #1a237e; }
+  .why-free-body .highlight-text {
+    background: #fff3e0;
+    border-left: 4px solid #ff9800;
+    padding: 10px 14px;
+    margin: 14px 0;
+    border-radius: 0 8px 8px 0;
+    font-size: 14px;
+    color: #e65100;
+    font-weight: bold;
+  }
+
+  /* ===== フッターCTA ===== */
+  .footer-cta {
+    background: linear-gradient(135deg, #1a237e, #283593);
+    padding: 32px 18px 28px;
+    text-align: center;
+  }
+  .footer-cta h3 {
+    color: #ffd700;
+    font-size: 20px;
+    font-weight: 900;
+    margin-bottom: 6px;
+    line-height: 1.4;
+  }
+  .footer-cta p {
+    color: rgba(255,255,255,0.8);
+    font-size: 13px;
+    margin-bottom: 20px;
+  }
+
+  /* お問い合わせ */
+  .contact {
+    background: #f5f5f5;
+    padding: 20px;
+    text-align: center;
+  }
+  .contact h4 { font-size: 15px; font-weight: 900; margin-bottom: 8px; }
+  .contact p { font-size: 13px; color: #666; line-height: 1.7; }
+
+  /* フッター */
+  .footer {
+    background: #1a237e;
+    padding: 20px;
+    text-align: center;
+    color: rgba(255,255,255,0.6);
+    font-size: 11px;
+  }
+</style>
+</head>
+<body>
+
+<!-- ===== HERO ===== -->
+<div class="hero">
+  <div class="hero-alert">
+    <div class="alert-icon">!</div>
+    重要｜仮想通貨プレミアムロジックの動画をご覧いただく前に
+  </div>
+  <div class="hero-main">
+    <div class="product-name">仮想通貨<br>プレミアムロジック</div>
+    <div class="product-sub">個別ロードマップ作成会</div>
+    <div class="hero-deadline">
+      このページは <span>3日後</span> に削除します<br>
+      <small style="font-size:12px;opacity:0.9;">特別にご用意した限定情報です。注意深く動画と文章をご覧ください</small>
+    </div>
+    <!-- カウントダウン -->
+    <div class="countdown">
+      <div class="countdown-unit"><span class="num">00</span><span class="unit-label">日</span></div>
+      <div class="countdown-unit"><span class="num">00</span><span class="unit-label">時間</span></div>
+      <div class="countdown-unit"><span class="num">00</span><span class="unit-label">分</span></div>
+      <div class="countdown-unit"><span class="num">00</span><span class="unit-label">秒</span></div>
+    </div>
+  </div>
+  <!-- 動画エリア -->
+  <div class="video-area">
+    <div class="video-thumb">
+      <div class="thumb-text">
+        <div class="big"><span class="red">借金300万円</span>→トレードで<span class="yellow">年10億</span></div>
+        <div class="big">世界最先端の<span class="yellow">ビットコイン戦略</span></div>
+        <div class="small">チャート分析ゼロ｜センス不要｜情報収集なし</div>
+      </div>
+      <div class="play-btn"></div>
+    </div>
+  </div>
+  <div class="video-hint">↑ 再生ボタンを押すと動画が見れます ↑</div>
+</div>
+
+<!-- ===== CTA①（最初） ===== -->
+<div class="cta-wrap" style="background:#f9f6f0; padding-top:24px;">
+  <a href="#" class="cta-btn">
+    個別ロードマップ作成会に申し込む
+    <span class="btn-sub">審査フォームへのご回答をお願いします</span>
+  </a>
+  <div class="cta-small">先着・審査制｜条件に合わない場合はお断りします</div>
+</div>
+
+<!-- ===== 章リスト ===== -->
+<div class="section section-white">
+  <div class="section-title">本日の動画内容</div>
+  <ul class="chapter-list">
+    <li>
+      <span class="ch-num">1章</span>
+      <span class="ch-text">なぜ99%の投資家は負け続けるのか？<br><strong>借金300万円→資産10億円を実現した「逆張りロジックの正体」</strong></span>
+    </li>
+    <li>
+      <span class="ch-num">2章</span>
+      <span class="ch-text">月利30%超えを誰でも再現できる<br><strong>最強トレード手法3選（シャドーロング・リバウンドファング・アルトストーム）を完全公開</strong></span>
+    </li>
+    <li>
+      <span class="ch-num">3章</span>
+      <span class="ch-text">感情ゼロで<strong>勝率99%を叩き出す「包囲網トレード戦略」</strong><br>＋今すぐ使える最強トレード環境の作り方</span>
+    </li>
+    <li>
+      <span class="ch-num">4章</span>
+      <span class="ch-text">投資未経験の主婦が3ヶ月で＋50万円！<br><strong>プレミアムロジック「驚異の再現性」と成功者が続出する本当の理由</strong></span>
+    </li>
+    <li>
+      <span class="ch-num">5章</span>
+      <span class="ch-text">視聴者限定・特別ご案内<br><strong>──あなた専用「資産形成ロードマップ」作成会への招待</strong></span>
+    </li>
+  </ul>
+</div>
+
+<!-- ===== 招待バナー ===== -->
+<div class="invite-banner">
+  <div class="invite-label">特別にご招待</div>
+  <h2>仮想通貨プレミアムロジック<br>個別ロードマップ作成会</h2>
+  <div class="sub">講師：シロ学長認定 専任スタッフ</div>
+</div>
+
+<!-- ===== ペインポイント ===== -->
+<div class="section section-white">
+  <div class="pain-intro">
+    <h2>
+      毎日頑張って働いても<br>
+      <span class="line-through">給料は上がらず</span><br>
+      お金の不安だけが増えていく——
+    </h2>
+    <p style="margin-top:12px;">そんな状況に「もう間に合わない」と<br>感じていませんか？</p>
+  </div>
+  <div class="solution-box">
+    <div class="sol-label">でも大丈夫です</div>
+    <h3>
+      仮想通貨の「か」の字も<br>知らなかった主婦が<br>
+      たった<strong>3ヶ月で＋50万円</strong><br>
+      を達成した<br>
+      「感情ゼロの投資ロジック」を<br>
+      今日すべてお伝えします
+    </h3>
+  </div>
+</div>
+
+<!-- ===== CTA②（中間） ===== -->
+<div class="cta-wrap" style="background:#f9f6f0; padding-top:0;">
+  <a href="#" class="cta-btn">
+    個別ロードマップ作成会に申し込む
+    <span class="btn-sub">審査フォームへのご回答をお願いします</span>
+  </a>
+  <div class="cta-small">先着・審査制｜条件に合わない場合はお断りします</div>
+</div>
+
+<!-- ===== 特典 ===== -->
+<div>
+  <div class="tokuten-header">
+    <div class="limited-label">エントリーはお早めに！有料級5つの参加特典付</div>
+    <h3>個別ロードマップ作成会<br>限定枠をご用意</h3>
+    <div class="sub">先着順！人数限定<br>参加するだけで有料教材のプレゼントももらえる！</div>
+  </div>
+  <ul class="tokuten-list" style="padding: 12px 16px;">
+    <li>
+      <span class="t-num">1</span>
+      <div class="t-content">
+        <div class="t-tag">ゼロからわかる！</div>
+        <div class="t-title">仮想通貨の本質とビットコインの真実</div>
+      </div>
+    </li>
+    <li>
+      <span class="t-num">2</span>
+      <div class="t-content">
+        <div class="t-tag">プロ直伝</div>
+        <div class="t-title">初心者が最初に抑えるべきコイン10選</div>
+      </div>
+    </li>
+    <li>
+      <span class="t-num">3</span>
+      <div class="t-content">
+        <div class="t-tag">初心者必見</div>
+        <div class="t-title">自動で月利30%を狙う仮想通貨投資戦略</div>
+      </div>
+    </li>
+    <li>
+      <span class="t-num">4</span>
+      <div class="t-content">
+        <div class="t-tag">プロトレーダー御用達！</div>
+        <div class="t-title">仮想通貨投資必須ツール4選</div>
+      </div>
+    </li>
+    <li>
+      <span class="t-num">5</span>
+      <div class="t-content">
+        <div class="t-tag">初心者が最初に覚えるべき</div>
+        <div class="t-title">トレード専門用語51選</div>
+      </div>
+    </li>
+  </ul>
+</div>
+
+<!-- ===== CTA③ ===== -->
+<div class="cta-wrap" style="background:#f9f6f0;">
+  <a href="#" class="cta-btn">
+    個別ロードマップ作成会に申し込む
+    <span class="btn-sub">審査フォームへのご回答をお願いします</span>
+  </a>
+  <div class="cta-small">先着・審査制｜条件に合わない場合はお断りします</div>
+</div>
+
+<!-- ===== 「こんな方におすすめ」 ===== -->
+<div class="section section-white">
+  <div class="recommend-box">
+    <div class="box-header">参加が おすすめ の方</div>
+    <div class="box-body">
+      <ul class="check-list">
+        <li><span class="check-icon green">✓</span>仮想通貨を「投資」として捉え、本気で人生を変える覚悟がある方</li>
+        <li><span class="check-icon green">✓</span>感情的な博打トレードから脱却し、安定して月利30%以上を実現したい方</li>
+        <li><span class="check-icon green">✓</span>爆益コイン情報に振り回されず、精度の高い分析ができるようになりたい方</li>
+        <li><span class="check-icon green">✓</span>過去に投資で失敗したが、本質を理解して再チャレンジする意欲がある方</li>
+        <li><span class="check-icon green">✓</span>月収100万円以上の不労所得を構築し、時間とお金の自由を手に入れたい方</li>
+        <li><span class="check-icon green">✓</span>家族との時間を大切にしながら、効率的に資産を増やしていきたい方</li>
+      </ul>
+      <p style="font-size:12px;color:#888;text-align:center;margin-top:12px;">これらに当てはまる方には参加を強くおすすめします！</p>
+    </div>
+  </div>
+
+  <div class="not-target-box">
+    <div class="box-header">参加の 対象外 となる方</div>
+    <div class="box-body">
+      <ul class="check-list">
+        <li><span class="check-icon">✗</span>一攫千金を狙う<strong>ギャンブル思考</strong>から抜け出せない方</li>
+        <li><span class="check-icon">✗</span>他人の予想だけに頼り、<strong>自分で学ぶ意欲がない</strong>方</li>
+        <li><span class="check-icon">✗</span>感情に左右されやすく、<strong>ルールを守れない</strong>方</li>
+        <li><span class="check-icon">✗</span>短期的な利益だけを追い求め、<strong>長期的な視点を持てない</strong>方</li>
+        <li><span class="check-icon">✗</span>投資に回せる余剰資金が全くなく、<strong>生活費に手を出してしまう</strong>方</li>
+      </ul>
+      <div class="warn-note">これらに当てはまる方は個別説明会へのお申し込みはご遠慮ください。シロ学長のノウハウではお役に立つことができません</div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== 正しい知識がないとこうなる ===== -->
+<div class="section section-light">
+  <div class="section-title">正しい投資の知識がないと<br>こんなことに…</div>
+  <div class="pain-cards">
+    <div class="pain-card">
+      <span class="check">✓</span>
+      <div class="pain-text">毎日チャートに張り付いて勉強しても<br><strong>個人投資家の実に8割が「損失確定」で終わる</strong></div>
+    </div>
+    <div class="pain-card">
+      <span class="check">✓</span>
+      <div class="pain-text">「今月は10万円稼いだ！」と喜んだのに<br><strong>感情に流されて翌月30万円を溶かす地獄</strong></div>
+    </div>
+    <div class="pain-card">
+      <span class="check">✓</span>
+      <div class="pain-text">投資歴10年・独学のベテランでも<br><strong>たった1回の判断ミスで資産が半分に消える</strong></div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== 受講生成果 ===== -->
+<div>
+  <div class="result-intro">
+    <div class="period">たった6ヶ月で</div>
+    <h3>これだけの成果！</h3>
+  </div>
+  <div class="result-cards">
+    <div class="result-card">
+      <div class="card-left">
+        <div class="avatar">👩</div>
+      </div>
+      <div class="card-right">
+        <div class="check-mark">✓</div>
+        <div class="condition">「仮想通貨って怖い…」と思っていた専業主婦が<br>たった3ヶ月で</div>
+        <div class="amount">利益50万円達成！</div>
+      </div>
+    </div>
+    <div class="result-card">
+      <div class="card-left">
+        <div class="avatar">👩</div>
+      </div>
+      <div class="card-right">
+        <div class="check-mark">✓</div>
+        <div class="condition">詐欺で全財産を失い絶望していた女性が<br>シロ学長のロジックで再起して</div>
+        <div class="amount">利益85万円達成！</div>
+      </div>
+    </div>
+    <div class="result-card">
+      <div class="card-left">
+        <div class="avatar">👨</div>
+      </div>
+      <div class="card-right">
+        <div class="check-mark">✓</div>
+        <div class="condition">独学8年・何度も挫折を繰り返した<br>40代の会社員が覚悟を決めて</div>
+        <div class="amount">利益400万円達成！</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== ロードマップCTA（月100万訴求）===== -->
+<div class="roadmap-cta">
+  <h2>
+    あなたでも<span class="big">月100万円を狙える</span>
+    "あなた専用のロードマップ"が
+    その場で完成します！
+  </h2>
+  <div class="sub">シロ学長認定講師が、あなたの現状をヒアリングして<br>その場でロードマップを作ります</div>
+</div>
+
+<!-- ===== 特典再掲 ===== -->
+<div>
+  <div class="tokuten-header">
+    <div class="limited-label">エントリーはお早めに！有料級5つの参加特典付</div>
+    <h3>個別ロードマップ作成会<br>限定枠をご用意</h3>
+    <div class="sub">先着順！人数限定<br>参加するだけで有料教材のプレゼントももらえる！</div>
+  </div>
+  <ul class="tokuten-list" style="padding: 12px 16px;">
+    <li><span class="t-num">1</span><div class="t-content"><div class="t-tag">ゼロからわかる！</div><div class="t-title">仮想通貨の本質とビットコインの真実</div></div></li>
+    <li><span class="t-num">2</span><div class="t-content"><div class="t-tag">プロ直伝</div><div class="t-title">初心者が最初に抑えるべきコイン10選</div></div></li>
+    <li><span class="t-num">3</span><div class="t-content"><div class="t-tag">初心者必見</div><div class="t-title">自動で月利30%を狙う仮想通貨投資戦略</div></div></li>
+    <li><span class="t-num">4</span><div class="t-content"><div class="t-tag">プロトレーダー御用達！</div><div class="t-title">仮想通貨投資必須ツール4選</div></div></li>
+    <li><span class="t-num">5</span><div class="t-content"><div class="t-tag">初心者が最初に覚えるべき</div><div class="t-title">トレード専門用語51選</div></div></li>
+  </ul>
+</div>
+
+<!-- ===== CTA④ ===== -->
+<div class="cta-wrap" style="background:#f9f6f0;">
+  <a href="#" class="cta-btn">
+    個別ロードマップ作成会に申し込む
+    <span class="btn-sub">審査フォームへのご回答をお願いします</span>
+  </a>
+  <div class="cta-small">先着・審査制｜条件に合わない場合はお断りします</div>
+</div>
+
+<!-- ===== 流れ ===== -->
+<div class="steps-section">
+  <div class="section-title">ロードマップ作成会の流れ</div>
+  <div class="step-item">
+    <div class="step-icon">📝</div>
+    <div class="step-text">
+      <h4>STEP 1｜エントリー</h4>
+      <p>困っていること・知りたいことを入力してエントリーしてください</p>
+      <div class="note">※お申し込み動機によってご参加いただけない場合があります</div>
+    </div>
+  </div>
+  <div class="step-item">
+    <div class="step-icon">📅</div>
+    <div class="step-text">
+      <h4>STEP 2｜日程確定</h4>
+      <p>審査通過後、ご参加いただける場合は希望の日程を選択して正式にお申し込み完了</p>
+      <div class="note">※キャンセルを前提とした申し込みはご遠慮ください</div>
+    </div>
+  </div>
+  <div class="step-item">
+    <div class="step-icon">💻</div>
+    <div class="step-text">
+      <h4>STEP 3｜セッションに参加</h4>
+      <p>オンラインにて楽しみながらご参加ください。メモをご用意ください</p>
+      <div class="note">※特典はセッション終了時に配布いたします</div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== 受講生の声 ===== -->
+<div class="section voice-section">
+  <div class="section-title">個別ロードマップ作成会<br>参加者の声</div>
+
+  <!-- Aさん -->
+  <div class="voice-card">
+    <div class="voice-header">
+      <div class="voice-avatar">👤</div>
+      <div class="voice-meta">
+        <div class="name">Aさん（30代・会社員）</div>
+        <span class="tag">独学から参加</span>
+      </div>
+    </div>
+    <div class="voice-body">
+      <div class="voice-quote">「なんとなくエントリーして、ただ祈るだけの毎日」でした。</div>
+      シロ学長のロジックを学んでから一番変わったのは、「なぜここでエントリーするのか」が自分の言葉で説明できるようになったことです。<br><br>
+      ロードマップ作成会に参加した時、「自分が何を理解していて、何が抜けているか」を初めてちゃんと整理してもらえた気がしました。独学でずっとモヤモヤしていた人ほど、行ってみると「あ、そういうことか」ってなると思います。
+    </div>
+  </div>
+
+  <!-- Bさん Q&A形式 -->
+  <div class="qa-voice">
+    <div class="voice-header">
+      <div class="voice-avatar" style="background:linear-gradient(135deg,#fce4ec,#f48fb1);">👩</div>
+      <div class="voice-meta">
+        <div class="name">Bさん（40代・女性）</div>
+        <span class="tag" style="background:#fce4ec;color:#c62828;">詐欺被害から再起</span>
+      </div>
+    </div>
+    <div class="qa-item">
+      <div class="qa-q">Q. 暗号資産投資を始める前に不安はありましたか？</div>
+      <div class="qa-a">
+        正直、最初はかなり迷いました。以前SNSで知り合った人に勧められて投資したら全部詐欺でした。それ以来「どうせ胡散臭い」と条件反射で構えてしまうようになって。シロ学長の動画を見た時も半信半疑でした。<br><br>
+        でも「借金300万を背負った」という話が出てきて、「あ、この人は失敗も全部話してくれるんだ」と思ったんですよね。<strong>都合の良いことだけ言う人って、失敗談を絶対に出さないじゃないですか。</strong>
+      </div>
+    </div>
+    <div class="qa-item">
+      <div class="qa-q">Q. ロードマップ作成会に参加してみていかがでしたか？</div>
+      <div class="qa-a">
+        「詐欺に遭っていた」という私の過去もちゃんと聞いてくれて、「だからこそ、こういう順番で学ぶと安心ですよ」って説明してもらえたんです。今年は<strong>アルトコインで130万円の利益</strong>が出ました。詐欺で失ったお金を少しずつ正しい方法で取り戻せている実感があります。
+      </div>
+    </div>
+  </div>
+
+  <!-- Cさん -->
+  <div class="voice-card">
+    <div class="voice-header">
+      <div class="voice-avatar" style="background:linear-gradient(135deg,#e3f2fd,#90caf9);">👨</div>
+      <div class="voice-meta">
+        <div class="name">Cさん（30代・男性）</div>
+        <span class="tag" style="background:#e3f2fd;color:#1565c0;">独学8年から参加</span>
+      </div>
+    </div>
+    <div class="voice-body">
+      <div class="voice-quote">「独学8年でも、勝てるようにはならなかった」</div>
+      シロ学長の「環境が全て」という話が刺さりました。ロードマップ作成会では私が独学でやってきた8年間を全部聞いてもらった上で、「ここが抜けてたんですよ」というポイントをいくつか指摘してもらえました。<br><br>
+      <strong>その瞬間、なんで勝てなかったのかが初めて腑に落ちた気がしました。</strong>今は本気で専業トレーダーを目指しています。独学で限界を感じているなら、1回だけでいいから行ってみてください。
+    </div>
+  </div>
+</div>
+
+<!-- ===== なぜ無料？ ===== -->
+<div class="why-free">
+  <div class="section-title">なぜ無料でこんなに？</div>
+  <div class="why-free-inner">
+    <div class="shiro-profile">
+      <div class="shiro-icon">🐻</div>
+      <div class="shiro-profile-text">
+        <div class="name">シロ学長</div>
+        <div class="career">元野村證券 × 元bitbank<br>累計資産10億円｜毎月1,000万円以上の不労所得</div>
+      </div>
+    </div>
+    <div class="why-free-body">
+      <p>少し、私の話をさせてください。</p>
+      <p>28歳で仮想通貨に出会い、詐欺で借金300万円。妻に「貯金が尽きた」と静かに言われた夜のことは、今でも忘れられません。</p>
+      <div class="highlight-text">
+        「正しい知識さえあれば、防げた悲劇だった」——
+        それが今でも忘れられないんです。
+      </div>
+      <p>8年かけて積み上げたトレードロジックは<strong>30種類以上</strong>あります。今日お届けするのは、そのほんの一部です。だから無料で渡せる。それだけです。</p>
+      <p>月額課金も定期契約も、一切ありません。「まず価値を感じてもらえたら、シロ学長独自の仮想通貨投資ロジックを取り入れ、収益を上げてほしい。」</p>
+      <p>そして、経済的自由と心の豊かさを1人でも多くの方に手に入れてもらい、日本経済の活性化へと繋げたい。それが今回プレゼントする理由です。</p>
+    </div>
+  </div>
+</div>
+
+<!-- ===== フッターCTA ===== -->
+<div class="footer-cta">
+  <div style="display:inline-block;background:#ffd700;color:#1a237e;font-size:13px;font-weight:900;padding:6px 20px;border-radius:30px;margin-bottom:14px;">特別にご招待</div>
+  <h3>仮想通貨プレミアムロジック<br>個別ロードマップ作成会</h3>
+  <p>先着・審査制｜定員に達し次第、受付終了します</p>
+  <a href="#" class="cta-btn" style="background:linear-gradient(135deg,#2e7d32,#43a047);">
+    個別ロードマップ作成会に申し込む
+    <span class="btn-sub">審査フォームへのご回答をお願いします</span>
+  </a>
+  <div class="cta-small" style="color:rgba(255,255,255,0.6);">条件に合わない場合はこちらからお断りします</div>
+</div>
+
+<!-- ===== お問い合わせ ===== -->
+<div class="contact">
+  <h4>お問い合わせ</h4>
+  <p>お申し込みに関する不明点やご質問は公式LINEへいつでもご連絡ください。<br>公式LINEでは個別でLINEのやり取りができるようになっています。</p>
+</div>
+
+<!-- フッター -->
+<div class="footer">
+  © シロ学長 仮想通貨プレミアムロジック
+</div>
+
+</body>
+</html>
