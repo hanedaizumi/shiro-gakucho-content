@@ -18,3 +18,9 @@ __pycache__/
 .env.*
 *.pem
 credentials.json
+
+# Next.js / Node (AI project)
+AI/**/app/node_modules/
+AI/**/app/.next/
+AI/**/app/.env
+AI/**/app/.env.local
