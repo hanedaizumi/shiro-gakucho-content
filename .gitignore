@@ -24,3 +24,6 @@ AI/**/app/node_modules/
 AI/**/app/.next/
 AI/**/app/.env
 AI/**/app/.env.local
+AI/**/.tools/
+AI/**/app/prisma/dev.db
+AI/**/app/prisma/dev.db-journal

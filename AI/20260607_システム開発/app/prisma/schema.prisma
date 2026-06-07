@@ -1,0 +1,98 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+enum JobStatus {
+  pending
+  collecting
+  analyzing
+  report_generating
+  report_ready
+  script_generating
+  script_ready
+  failed
+}
+
+model ResearchJob {
+  id           String            @id @default(cuid())
+  status       JobStatus         @default(pending)
+  stepMessage  String?
+  scriptNumber Int?
+  startedAt    DateTime          @default(now())
+  completedAt  DateTime?
+  errorMessage String?
+  manualXPosts String?
+  report       Report?
+  script       Script?
+  snapshots    MarketSnapshot[]
+  sources      SourceDocument[]
+}
+
+model MarketSnapshot {
+  id         String      @id @default(cuid())
+  jobId      String
+  job        ResearchJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  timeframe  String
+  price      Float
+  rsi        Float?
+  ma200      Float?
+  divergence Float?
+  rawJson    Json
+  createdAt  DateTime    @default(now())
+}
+
+model SourceDocument {
+  id        String      @id @default(cuid())
+  jobId     String
+  job       ResearchJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  type      String
+  title     String?
+  url       String?
+  content   String
+  fetchedAt DateTime    @default(now())
+}
+
+model Report {
+  id        String      @id @default(cuid())
+  jobId     String      @unique
+  job       ResearchJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  markdown  String
+  json      Json
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+}
+
+model Script {
+  id          String      @id @default(cuid())
+  jobId       String      @unique
+  job         ResearchJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  markdown    String
+  episodeUsed String?
+  conceptUsed String?
+  validation  Json
+  charCount   Int
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+}
+
+model ScriptHistory {
+  id           String    @id @default(cuid())
+  scriptNumber Int       @unique
+  filename     String
+  conceptUsed  String?
+  episodeUsed  String?
+  keyLevels    Json
+  content      String?
+  publishedAt  DateTime?
+  createdAt    DateTime  @default(now())
+}
+
+model AppSetting {
+  id    String @id @default("default")
+  value Json
+}
