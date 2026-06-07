@@ -1,0 +1,31 @@
+---
+description: AIシステム開発の固定技術スタック。AIフォルダ配下の開発時に適用。
+globs: AI/**
+alwaysApply: false
+---
+
+# AI システム開発｜技術スタックルール
+
+詳細は `AI/20260607_システム開発/00_技術要件.md` を参照。
+
+## 固定スタック（必須）
+
+- **Next.js（App Router）** — Pages Router 禁止
+- **Prisma** — DB アクセスは Prisma Client 経由
+- **Tailwind CSS** — スタイリングの標準
+- **PostgreSQL** — 唯一の DB
+- **本番環境：Google Cloud** — Cloud Run + Cloud SQL を基本想定
+
+## 実装ルール
+
+1. ディレクトリは `app/` ベース（App Router）
+2. Server Components デフォルト。Client Components は必要最小限
+3. API は Route Handlers または Server Actions
+4. スキーマ変更は `prisma/schema.prisma` + マイグレーション
+5. `DATABASE_URL` 等の秘密情報は `.env` 管理（Git 禁止）
+6. 新規ライブラリ追加時は上記スタックと整合するか確認してから導入
+
+## 禁止
+
+- Pages Router / 別 ORM / 本番 DB を PostgreSQL 以外に変更
+- AWS・Vercel 等を本番の主軸とする構成
