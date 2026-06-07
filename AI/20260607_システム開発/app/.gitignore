@@ -42,3 +42,13 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# prisma generated client
+/src/generated/
+
+# local json store
+/data/
+
+# generated output artifacts
+/../output/reports/*.md
+/../output/scripts/*.md

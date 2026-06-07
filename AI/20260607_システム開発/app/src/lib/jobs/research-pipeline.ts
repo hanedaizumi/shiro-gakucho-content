@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db";
+import type { JobStatus } from "@/lib/store/types";
 import { collectAllData } from "@/lib/collectors";
 import { runTechnicalAnalysis } from "@/lib/analysis";
 import { generateReport } from "@/lib/llm/report-generator";
@@ -13,7 +14,7 @@ import { exportArtifacts } from "@/lib/export";
 
 async function updateJob(
   jobId: string,
-  status: Parameters<typeof prisma.researchJob.update>[0]["data"]["status"],
+  status: JobStatus,
   stepMessage: string,
   extra?: Record<string, unknown>
 ) {

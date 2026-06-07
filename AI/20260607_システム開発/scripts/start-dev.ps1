@@ -30,6 +30,15 @@ if (-not (Test-Path "prisma\dev.db")) {
     npx prisma db push
 }
 
+# ポート3000を占有している古い Node プロセスを停止
+$portProc = Get-NetTCPConnection -LocalPort 3000 -ErrorAction SilentlyContinue |
+  Select-Object -ExpandProperty OwningProcess -Unique
+foreach ($procId in $portProc) {
+  if ($procId -and $procId -ne 0) {
+    Stop-Process -Id $procId -Force -ErrorAction SilentlyContinue
+  }
+}
+
 Write-Host ""
 Write-Host "==> 開発サーバーを起動します: http://localhost:3000" -ForegroundColor Green
 Write-Host "    停止するには Ctrl+C" -ForegroundColor Gray

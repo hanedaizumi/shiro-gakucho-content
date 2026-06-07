@@ -23,12 +23,19 @@ export function GenerateForm() {
         }),
       });
 
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        alert(`生成の開始に失敗しました: ${data.error ?? `HTTP ${res.status}`}`);
+        return;
+      }
       if (data.jobId) {
         router.push(`/jobs/${data.jobId}`);
+      } else {
+        alert("生成の開始に失敗しました: ジョブIDが返されませんでした");
       }
-    } catch {
-      alert("生成の開始に失敗しました");
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "不明なエラー";
+      alert(`生成の開始に失敗しました: ${msg}`);
     } finally {
       setLoading(false);
     }

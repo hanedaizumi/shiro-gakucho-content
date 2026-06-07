@@ -27,3 +27,6 @@ AI/**/app/.env.local
 AI/**/.tools/
 AI/**/app/prisma/dev.db
 AI/**/app/prisma/dev.db-journal
+AI/**/app/data/
+AI/**/output/reports/*.md
+AI/**/output/scripts/*.md
