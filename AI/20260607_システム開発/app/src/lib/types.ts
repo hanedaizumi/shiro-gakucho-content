@@ -58,11 +58,18 @@ export interface TechnicalAnalysis {
   ma200Divergence: number;
   rsiDaily: number;
   rsi4h: number;
+  rsi1h: number;
+  atr14: number;
+  trend4h: "bullish" | "bearish" | "neutral";
+  trend1h: "bullish" | "bearish" | "neutral";
+  tradingBias: "bullish" | "bearish" | "neutral";
   swingHighs: SwingPoint[];
   swingLows: SwingPoint[];
   keyLevels: KeyLevel[];
   trendReversalCondition: string;
   candleCharacteristics: string;
+  candleCharacteristics4h: string;
+  candleCharacteristics1h: string;
   volumeSpike: boolean;
   marketPhase: MarketPhase;
   marketPhaseLabel: string;
@@ -76,15 +83,27 @@ export interface TechnicalAnalysis {
     name: string;
     reason: string;
     phase: MarketPhase;
+    definition: string;
+    chartApplication: string;
+    benefit: string;
+    entryBridge: string;
   };
 }
 
 export interface TradeScenario {
   trigger: string;
   entry: string;
+  entryPrice: number;
   stopLoss: string;
+  stopLossPrice: number;
+  stopLossAmount: number;
   takeProfit1: string;
+  takeProfit1Price: number;
+  takeProfit1Amount: number;
   takeProfit2: string;
+  takeProfit2Price: number;
+  takeProfit2Amount: number;
+  rrRatio: string;
   notes: string;
 }
 

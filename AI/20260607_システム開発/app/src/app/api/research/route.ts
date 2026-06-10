@@ -13,6 +13,7 @@ export async function POST(request: Request) {
       thumbnailText?: string;
       titleText?: string;
       storyHypothesis?: string;
+      tradingBias?: "bullish" | "bearish" | "neutral";
       researchMode?: CoinResearchMode;
       outputMode?: OutputMode;
       scriptNumber?: number;
@@ -51,6 +52,7 @@ export async function POST(request: Request) {
       thumbnailText: body.thumbnailText?.trim(),
       titleText: body.titleText?.trim(),
       storyHypothesis: body.storyHypothesis?.trim(),
+      tradingBias: body.tradingBias ?? "neutral",
       researchMode,
       outputMode,
       scriptNumber: body.scriptNumber,

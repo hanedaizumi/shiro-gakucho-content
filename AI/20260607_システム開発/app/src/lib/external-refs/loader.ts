@@ -75,10 +75,12 @@ export async function loadExternalContext(
 
   const archiveDir = path.join(ws, "02_アーカイブ", "過去台本");
   const inputDir = path.join(ws, "03_YouTube台本", "インプット");
+  const outputDir = path.join(ws, "03_YouTube台本", "アウトプット");
 
   const files = [
     ...(await findScriptFiles(archiveDir)),
     ...(await findScriptFiles(inputDir)),
+    ...(await findScriptFiles(outputDir)),
   ];
 
   const scriptsWithContent = await Promise.all(

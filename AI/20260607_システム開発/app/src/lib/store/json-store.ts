@@ -11,6 +11,7 @@ import type {
   ScriptHistory,
   SourceDocument,
 } from "./types";
+import { gcsRead, gcsWrite, getGcsConfig } from "./gcs-backend";
 
 const DATA_DIR = path.join(process.cwd(), "data");
 const DB_FILE = path.join(DATA_DIR, "store.json");
@@ -24,6 +25,25 @@ function now(): string {
 }
 
 async function loadDb(): Promise<Database> {
+  const gcs = getGcsConfig();
+
+  // GCS が設定されている場合は GCS を優先して読み込む
+  if (gcs) {
+    try {
+      const remote = await gcsRead(gcs.bucket, gcs.object);
+      if (remote) {
+        const db = ensureDb(JSON.parse(remote) as Database);
+        // ローカルにも書き込んでおく（次回の高速アクセス用）
+        await mkdir(DATA_DIR, { recursive: true }).catch(() => {});
+        await writeFile(DB_FILE, remote, "utf-8").catch(() => {});
+        return db;
+      }
+    } catch {
+      // GCS 読み込み失敗時はローカルファイルにフォールバック
+    }
+  }
+
+  // ローカルファイルから読み込む
   try {
     const raw = await readFile(DB_FILE, "utf-8");
     return ensureDb(JSON.parse(raw) as Database);
@@ -42,12 +62,22 @@ async function loadDb(): Promise<Database> {
 
 function ensureDb(db: Database): Database {
   if (!db.newsLlmScores) db.newsLlmScores = [];
+  if (!db.scriptHistory) db.scriptHistory = [];
   return db;
 }
 
 async function saveDb(db: Database): Promise<void> {
+  const content = JSON.stringify(db, null, 2);
+
+  // ローカルファイルに書き込む
   await mkdir(DATA_DIR, { recursive: true });
-  await writeFile(DB_FILE, JSON.stringify(db, null, 2), "utf-8");
+  await writeFile(DB_FILE, content, "utf-8");
+
+  // GCS が設定されている場合は非同期で GCS にも書き込む（エラーは無視）
+  const gcs = getGcsConfig();
+  if (gcs) {
+    gcsWrite(gcs.bucket, gcs.object, content).catch(() => {});
+  }
 }
 
 export const store = {

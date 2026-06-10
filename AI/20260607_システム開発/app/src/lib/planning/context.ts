@@ -1,19 +1,25 @@
+export type TradingBias = "bullish" | "bearish" | "neutral";
+
 export interface PlanningContext {
   thumbnailText: string;
   titleText: string;
   /** 台本の方向性・仮説（任意）。LLMによるニュース意味スコアリングに使用される */
   storyHypothesis: string;
+  /** テクニカル分析のバイアス方向（上昇優先/下落優先/中立） */
+  tradingBias: TradingBias;
 }
 
 export function normalizePlanning(input?: {
   thumbnailText?: string;
   titleText?: string;
   storyHypothesis?: string;
+  tradingBias?: TradingBias;
 }): PlanningContext {
   return {
     thumbnailText: input?.thumbnailText?.trim() ?? "",
     titleText: input?.titleText?.trim() ?? "",
     storyHypothesis: input?.storyHypothesis?.trim() ?? "",
+    tradingBias: input?.tradingBias ?? "neutral",
   };
 }
 

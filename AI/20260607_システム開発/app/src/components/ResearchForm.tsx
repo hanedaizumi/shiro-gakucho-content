@@ -5,6 +5,13 @@ import { useRouter } from "next/navigation";
 
 type ResearchMode = "fundamentals" | "technical" | "both";
 type OutputMode = "report" | "script" | "report_and_script";
+type TradingBias = "bullish" | "bearish" | "neutral";
+
+const TRADING_BIAS_OPTIONS: { value: TradingBias; label: string; emoji: string }[] = [
+  { value: "bullish", label: "上昇優先", emoji: "📈" },
+  { value: "neutral", label: "中立", emoji: "➡️" },
+  { value: "bearish", label: "下落優先", emoji: "📉" },
+];
 
 const RESEARCH_OPTIONS: { value: ResearchMode; label: string; description: string }[] = [
   { value: "fundamentals", label: "ファンダメンタルズ", description: "ニュース・時事 ＋ 競合YouTube台本" },
@@ -25,6 +32,7 @@ export default function ResearchForm() {
   const [thumbnailText, setThumbnailText] = useState("");
   const [titleText, setTitleText] = useState("");
   const [storyHypothesis, setStoryHypothesis] = useState("");
+  const [tradingBias, setTradingBias] = useState<TradingBias>("neutral");
   const [researchMode, setResearchMode] = useState<ResearchMode>("both");
   const [outputMode, setOutputMode] = useState<OutputMode>("report_and_script");
   const [scriptNumber, setScriptNumber] = useState("");
@@ -49,6 +57,7 @@ export default function ResearchForm() {
           thumbnailText: thumbnailText.trim(),
           titleText: titleText.trim(),
           storyHypothesis: storyHypothesis.trim(),
+          tradingBias,
           researchMode,
           outputMode,
           scriptNumber: scriptNumber ? parseInt(scriptNumber, 10) : undefined,
@@ -126,7 +135,33 @@ export default function ResearchForm() {
       </div>
 
       <div>
-        <label className="mb-2 block text-sm text-[var(--muted)]">⑤ リサーチ種別</label>
+        <label className="mb-2 block text-sm text-[var(--muted)]">
+          ⑤ テクニカルバイアス
+          <span className="ml-1 text-xs opacity-60">（テクニカル分析の方向感・任意）</span>
+        </label>
+        <div className="flex gap-2">
+          {TRADING_BIAS_OPTIONS.map((opt) => (
+            <button
+              key={opt.value}
+              type="button"
+              onClick={() => setTradingBias(opt.value)}
+              className={`flex-1 rounded-lg border px-3 py-2 text-sm transition ${
+                tradingBias === opt.value
+                  ? "border-[var(--accent)] bg-[var(--accent)]/10 font-semibold"
+                  : "border-[var(--border)] hover:border-[var(--accent)]/50"
+              }`}
+            >
+              {opt.emoji} {opt.label}
+            </button>
+          ))}
+        </div>
+        <p className="mt-1 text-xs text-[var(--muted)]">
+          客観的なデータを踏まえつつ、このバイアス方向を優先してシナリオ・レポートを構成します
+        </p>
+      </div>
+
+      <div>
+        <label className="mb-2 block text-sm text-[var(--muted)]">⑥ リサーチ種別</label>
         <div className="space-y-2">
           {RESEARCH_OPTIONS.map((opt) => (
             <label
@@ -155,7 +190,7 @@ export default function ResearchForm() {
       </div>
 
       <div>
-        <label className="mb-2 block text-sm text-[var(--muted)]">⑥ 出力形式</label>
+        <label className="mb-2 block text-sm text-[var(--muted)]">⑦ 出力形式</label>
         <div className="space-y-2">
           {OUTPUT_OPTIONS.map((opt) => (
             <label

@@ -1,5 +1,6 @@
 import { mkdir, writeFile } from "fs/promises";
 import path from "path";
+import { getOutputBase } from "@/lib/paths";
 
 export async function exportArtifacts(
   jobId: string,
@@ -8,7 +9,7 @@ export async function exportArtifacts(
   scriptNumber: number
 ): Promise<{ reportPath: string; scriptPath: string }> {
   const date = new Date().toISOString().split("T")[0].replace(/-/g, "");
-  const outputBase = path.join(process.cwd(), "..", "output");
+  const outputBase = getOutputBase();
   const reportsDir = path.join(outputBase, "reports");
   const scriptsDir = path.join(outputBase, "scripts");
 
@@ -42,7 +43,7 @@ export async function exportCoinReport(
   reportMd: string
 ): Promise<string> {
   const date = new Date().toISOString().split("T")[0].replace(/-/g, "");
-  const outputBase = path.join(process.cwd(), "..", "output");
+  const outputBase = getOutputBase();
   const reportsDir = path.join(outputBase, "reports");
   await mkdir(reportsDir, { recursive: true });
 

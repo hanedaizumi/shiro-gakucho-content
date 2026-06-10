@@ -116,6 +116,10 @@ function buildReportJson(
       name: technical.conceptSuggestion.name,
       reason: technical.conceptSuggestion.reason,
       phase: technical.conceptSuggestion.phase,
+      definition: technical.conceptSuggestion.definition,
+      chartApplication: technical.conceptSuggestion.chartApplication,
+      benefit: technical.conceptSuggestion.benefit,
+      entryBridge: technical.conceptSuggestion.entryBridge,
       ma200: technical.ma200,
       divergence: technical.ma200Divergence,
       rsi: technical.rsiDaily,
@@ -152,64 +156,165 @@ function buildReportMarkdown(
   date: string,
   previousScript: PreviousScriptContext | null
 ): string {
-  const b = json.scenarios.bullish as Record<string, string>;
-  const s = json.scenarios.bearish as Record<string, string>;
+  const t = json.technical;
+  const b = json.scenarios.bullish as Record<string, unknown>;
+  const s = json.scenarios.bearish as Record<string, unknown>;
   const ca = json.chartAnalysis as Record<string, unknown>;
   const levels = (ca.keyLevels as Array<{ price: number; type: string; reason: string }>) ?? [];
   const youtubeBlock = buildYouTubeContextBlock(json);
-
-  const phaseReasons = ((json.marketPhase as { reasons?: string[] })?.reasons ?? []).slice(0, 2);
+  const wc = json.weeklyConcept as Record<string, string>;
 
   const prevSection = buildPreviousPredictionReport(
     previousScript,
-    json.technical.currentPrice,
+    t.currentPrice,
     String(ca.trend),
     String(ca.trendReversalCondition)
   );
 
-  return `# BTC市況レポート ${date}
+  const biasLabel =
+    t.tradingBias === "bullish" ? "上昇優先" :
+    t.tradingBias === "bearish" ? "下落優先" : "中立";
 
-## 1. サマリー（現在地1文）
-${json.summary}
+  const trend4hLabel =
+    t.trend4h === "bullish" ? "上昇" : t.trend4h === "bearish" ? "下落" : "レンジ";
+  const trend1hLabel =
+    t.trend1h === "bullish" ? "上昇" : t.trend1h === "bearish" ? "下落" : "レンジ";
+  const trendDailyLabel =
+    t.trend === "bullish" ? "上昇" : t.trend === "bearish" ? "下落" : "レンジ";
 
-## 2. 価格・ボラティリティ
-- 現在値: ${formatPrice(json.technical.currentPrice)}ドル
-- 24h変化: ${json.technical.change24h.toFixed(2)}%
-- 7d変化: ${json.technical.change7d.toFixed(2)}%
-${json.priceVolatility.marketCap ? `- 時価総額: $${(json.priceVolatility.marketCap as number).toLocaleString()}` : ""}
-${json.priceVolatility.dominance ? `- BTCドミナンス: ${(json.priceVolatility.dominance as number).toFixed(1)}%` : ""}
+  const supportLevels = levels.filter((l) => l.type === "support").sort((a, b) => b.price - a.price).slice(0, 3);
+  const resistanceLevels = levels.filter((l) => l.type === "resistance").sort((a, b) => a.price - b.price).slice(0, 3);
 
-## 3. チャート形状分析（日足）
-- フェーズ: ${(json.marketPhase as Record<string, string>)?.label ?? "未判定"}
-- トレンド: ${ca.trend}
-${phaseReasons.map((r) => `- ${r}`).join("\n")}
-- 重要ライン:
-${levels.slice(0, 4).map((l) => `  - ${formatPrice(l.price)}ドル（${l.type}）`).join("\n")}
-- ローソク足: ${ca.candleCharacteristics}
-- トレンド転換条件: ${ca.trendReversalCondition}
+  const allLevelsTable = [
+    ...resistanceLevels.map((l) => `| ${formatPrice(l.price)} | 抵抗（レジスタンス） | ${l.reason ?? ""} |`),
+    `| **${formatPrice(t.currentPrice)}** | **← 現在値** |  |`,
+    ...supportLevels.map((l) => `| ${formatPrice(l.price)} | 支持（サポート） | ${l.reason ?? ""} |`),
+  ].join("\n");
+
+  const mainScenario = t.tradingBias === "bearish" ? s : b;
+  const subScenario = t.tradingBias === "bearish" ? b : s;
+  const mainLabel = t.tradingBias === "bearish" ? "下落（メイン）" : "上昇（メイン）";
+  const subLabel = t.tradingBias === "bearish" ? "上昇（サブ・警戒用）" : "下落（サブ・警戒用）";
+
+  return `# BTCテクニカルレポート ${date}
+> このレポートは台本④〜⑦セクションのインプット素材です。
+
+---
+
+## 【基本情報】
+- **現在値**: ${formatPrice(t.currentPrice)}ドル
+- **24h変化**: ${t.change24h >= 0 ? "+" : ""}${t.change24h.toFixed(2)}%
+- **7d変化**: ${t.change7d >= 0 ? "+" : ""}${t.change7d.toFixed(2)}%
+- **市場フェーズ**: ${(json.marketPhase as Record<string, string>)?.label ?? "未判定"}
+- **ATR(14日足)**: ${formatPrice(t.atr14)}ドル（損切り・利確幅の基準値）
+- **バイアス設定**: ${biasLabel}
+${json.priceVolatility.dominance ? `- **BTCドミナンス**: ${(json.priceVolatility.dominance as number).toFixed(1)}%` : ""}
+
+---
+
+## 【前回予測との照合】
+${prevSection}
+
+---
+
+## ④ BTCの現在地（日足ベース）
+
+### 【指標】
+**▼ 固定ベース指標（毎回確認）**
+| 指標 | 数値 | 判定 |
+|------|------|------|
+| 現在値 | ${formatPrice(t.currentPrice)}ドル | — |
+| MA200（日足） | ${formatPrice(t.ma200)}ドル | 乖離率 ${t.ma200Divergence >= 0 ? "+" : ""}${t.ma200Divergence.toFixed(1)}% |
+| RSI（日足） | ${t.rsiDaily.toFixed(1)} | ${t.rsiDaily > 70 ? "買われすぎ警戒" : t.rsiDaily < 30 ? "売られすぎ（反発注視）" : t.rsiDaily > 55 ? "強め" : t.rsiDaily < 45 ? "弱め" : "中立"} |
+| RSI（4H） | ${t.rsi4h.toFixed(1)} | ${t.rsi4h > 60 ? "短期過熱注意" : t.rsi4h < 40 ? "短期売られすぎ" : "中立"} |
+| RSI（1H） | ${t.rsi1h.toFixed(1)} | ${t.rsi1h > 60 ? "1H過熱" : t.rsi1h < 40 ? "1H売られすぎ" : "中立"} |
+| 7日変化 | ${t.change7d >= 0 ? "+" : ""}${t.change7d.toFixed(2)}% | — |
+
+**▼ フェーズ別注目指標**
+${t.phaseReasons.slice(0, 3).map((r) => `- ${r}`).join("\n")}
+
+### 【ローソク足】
+- **日足直近**: ${t.candleCharacteristics}
+- **4H足**: ${t.candleCharacteristics4h}
+- **1H足**: ${t.candleCharacteristics1h}
+- **出来高**: ${t.volumeSpike ? "急増あり（平均比+80%以上）─ 大口の動きが入った可能性" : "通常水準（特筆なし）"}
+
+### 【ライン（水平線・斜め線）】
+**▼ 主要ライン（上から下）**
+| 価格 | 種別 | 根拠 |
+|------|------|------|
+${allLevelsTable}
+
+**▼ マルチタイムフレーム整合**
+| 時間足 | トレンド | 判定 |
+|--------|----------|------|
+| 日足 | ${trendDailyLabel} | ベース方向 |
+| 4時間足 | ${trend4hLabel} | エントリーゾーン |
+| 1時間足 | ${trend1hLabel} | トリガー確認用 |
+
+**▼ 総合判断**: 3本の時間足が${
+    t.trend === t.trend4h && t.trend4h === t.trend1h
+      ? "すべて同方向→方向感が明確"
+      : t.trend === t.trend4h
+      ? "日足・4Hが一致、1Hは揺れ→エントリー待ちの局面"
+      : "時間足間で乖離→慎重にトリガー確認が必要"
+  }
+
+**▼ トレンド転換条件**
+${t.trendReversalCondition}
 ${youtubeBlock}
 
-## 4. 今週注目のテクニカル概念
-**${(json.weeklyConcept as Record<string, string>).name}**
-${(json.weeklyConcept as Record<string, string>).reason}
+---
 
-## 5. シナリオ別アクションプラン
-### 上昇シナリオ
-- トリガー: ${b.trigger}
-- エントリー: ${b.entry}
-- 損切り: ${b.stopLoss}
-- 利確1: ${b.takeProfit1}
-- 利確2: ${b.takeProfit2}
+## ⑤ 今週の重要ポイント：${wc.name}
+> **選定理由**: ${wc.reason}
 
-### 下落シナリオ
-- トリガー: ${s.trigger}
-- エントリー: ${s.entry}
-- 損切り: ${s.stopLoss}
-- 利確1: ${s.takeProfit1}
-- 利確2: ${s.takeProfit2}
+**1. 簡単に定義（10秒で「これは〜のことです」）**
+${wc.definition ?? wc.reason}
 
-## 6. 前回予測との照合（自チャンネル・1つ前の台本）
-${prevSection}
+**2. 今のBTCチャートでの具体的な見方・使い方**
+${wc.chartApplication ?? `現在価格${formatPrice(t.currentPrice)}ドルで確認できる形状に注目します。`}
+
+**3. これが分かると何が良いか？**
+${wc.benefit ?? "エントリー根拠の精度が上がります。"}
+
+**4. エントリー判断への繋ぎ**
+${wc.entryBridge ?? t.trendReversalCondition}
+
+---
+
+## ⑦ シナリオ別アクションプラン
+
+> **バイアス: ${biasLabel}** ｜ ATR(14): ${formatPrice(t.atr14)}ドル（損切り幅の基準）
+
+### 【${mainLabel} シナリオ】
+| 項目 | 内容 |
+|------|------|
+| トリガー | ${mainScenario.trigger} |
+| エントリー | ${mainScenario.entry} |
+| 損切り | ${mainScenario.stopLoss} |
+| 利確① | ${mainScenario.takeProfit1} |
+| 利確② | ${mainScenario.takeProfit2} |
+| RR比 | ${mainScenario.rrRatio} |
+| 注意 | ${mainScenario.notes} |
+
+### 【${subLabel} シナリオ】
+| 項目 | 内容 |
+|------|------|
+| トリガー | ${subScenario.trigger} |
+| エントリー | ${subScenario.entry} |
+| 損切り | ${subScenario.stopLoss} |
+| 利確① | ${subScenario.takeProfit1} |
+| 利確② | ${subScenario.takeProfit2} |
+| RR比 | ${subScenario.rrRatio} |
+| 注意 | ${subScenario.notes} |
+
+---
+
+## 【補足データ】
+${json.externalSummary.news && (json.externalSummary.news as unknown[]).length > 0
+  ? `### ファンダメンタルズ（参考ニュース）\n${(json.externalSummary.news as Array<{ title: string }>).slice(0, 5).map((n) => `- ${n.title}`).join("\n")}`
+  : ""}
 `;
 }
 

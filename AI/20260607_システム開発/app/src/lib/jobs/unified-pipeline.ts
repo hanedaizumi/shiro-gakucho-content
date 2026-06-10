@@ -65,6 +65,7 @@ export async function runUnifiedPipeline(
     thumbnailText?: string;
     titleText?: string;
     storyHypothesis?: string;
+    tradingBias?: "bullish" | "bearish" | "neutral";
   }
 ) {
   try {
@@ -75,6 +76,7 @@ export async function runUnifiedPipeline(
       thumbnailText: options.thumbnailText,
       titleText: options.titleText,
       storyHypothesis: options.storyHypothesis,
+      tradingBias: options.tradingBias ?? "neutral",
     });
     const includeReport =
       options.outputMode === "report" || options.outputMode === "report_and_script";
@@ -147,7 +149,8 @@ export async function runUnifiedPipeline(
       const ctx = coin.symbol === "BTC" ? await loadExternalContext() : null;
       technical = runTechnicalAnalysis(
         collectedData,
-        ctx?.usedConcepts ?? []
+        ctx?.usedConcepts ?? [],
+        planning.tradingBias
       );
 
       await prisma.marketSnapshot.createMany({
