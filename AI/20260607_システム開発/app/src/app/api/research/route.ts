@@ -12,6 +12,7 @@ export async function POST(request: Request) {
       coinInput?: string;
       thumbnailText?: string;
       titleText?: string;
+      storyHypothesis?: string;
       researchMode?: CoinResearchMode;
       outputMode?: OutputMode;
       scriptNumber?: number;
@@ -41,6 +42,7 @@ export async function POST(request: Request) {
         scriptNumber: body.scriptNumber ?? null,
         thumbnailText: body.thumbnailText?.trim() || null,
         titleText: body.titleText?.trim() || null,
+        storyHypothesis: body.storyHypothesis?.trim() || null,
       },
     });
 
@@ -48,6 +50,7 @@ export async function POST(request: Request) {
       coinInput: body.coinInput.trim(),
       thumbnailText: body.thumbnailText?.trim(),
       titleText: body.titleText?.trim(),
+      storyHypothesis: body.storyHypothesis?.trim(),
       researchMode,
       outputMode,
       scriptNumber: body.scriptNumber,

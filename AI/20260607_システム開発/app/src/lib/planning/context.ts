@@ -1,15 +1,19 @@
 export interface PlanningContext {
   thumbnailText: string;
   titleText: string;
+  /** 台本の方向性・仮説（任意）。LLMによるニュース意味スコアリングに使用される */
+  storyHypothesis: string;
 }
 
 export function normalizePlanning(input?: {
   thumbnailText?: string;
   titleText?: string;
+  storyHypothesis?: string;
 }): PlanningContext {
   return {
     thumbnailText: input?.thumbnailText?.trim() ?? "",
     titleText: input?.titleText?.trim() ?? "",
+    storyHypothesis: input?.storyHypothesis?.trim() ?? "",
   };
 }
 
@@ -94,6 +98,9 @@ export function buildPlanningAxisMemo(
   lines.push(
     `${coinName}（${coinSymbol}）の動きを「恐怖煽り」ではなく「構造→条件→行動」で説明する`
   );
+  if (planning.storyHypothesis) {
+    lines.push(`台本仮説：「${planning.storyHypothesis}」を根拠付けるニュースを優先`);
+  }
   if (kw.length) {
     lines.push(`企画キーワードとの接続を優先: ${kw.join("、")}`);
   }

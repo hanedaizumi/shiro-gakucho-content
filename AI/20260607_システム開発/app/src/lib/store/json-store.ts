@@ -4,6 +4,7 @@ import type {
   Database,
   JobStatus,
   MarketSnapshot,
+  NewsLlmScore,
   Report,
   ResearchJob,
   Script,
@@ -25,7 +26,7 @@ function now(): string {
 async function loadDb(): Promise<Database> {
   try {
     const raw = await readFile(DB_FILE, "utf-8");
-    return JSON.parse(raw) as Database;
+    return ensureDb(JSON.parse(raw) as Database);
   } catch {
     return {
       jobs: [],
@@ -34,8 +35,14 @@ async function loadDb(): Promise<Database> {
       reports: [],
       scripts: [],
       scriptHistory: [],
+      newsLlmScores: [],
     };
   }
+}
+
+function ensureDb(db: Database): Database {
+  if (!db.newsLlmScores) db.newsLlmScores = [];
+  return db;
 }
 
 async function saveDb(db: Database): Promise<void> {
@@ -58,6 +65,7 @@ export const store = {
         outputMode?: ResearchJob["outputMode"];
         thumbnailText?: string | null;
         titleText?: string | null;
+        storyHypothesis?: string | null;
       };
     }): Promise<ResearchJob> {
       const db = await loadDb();
@@ -74,6 +82,7 @@ export const store = {
         outputMode: args.data.outputMode ?? null,
         thumbnailText: args.data.thumbnailText ?? null,
         titleText: args.data.titleText ?? null,
+        storyHypothesis: args.data.storyHypothesis ?? null,
         startedAt: now(),
       };
       db.jobs.unshift(job);
@@ -276,6 +285,39 @@ export const store = {
       db.scripts[idx].updatedAt = now();
       await saveDb(db);
       return db.scripts[idx];
+    },
+  },
+
+  newsLlmScore: {
+    async findMany(args: {
+      where: { newsUrl: { in: string[] }; planningHash: string };
+    }): Promise<NewsLlmScore[]> {
+      const db = await loadDb();
+      const urls = new Set(args.where.newsUrl.in);
+      return db.newsLlmScores.filter(
+        (s) => urls.has(s.newsUrl) && s.planningHash === args.where.planningHash
+      );
+    },
+
+    async createMany(args: {
+      data: Array<Omit<NewsLlmScore, "id" | "createdAt">>;
+      skipDuplicates?: boolean;
+    }): Promise<void> {
+      const db = await loadDb();
+      for (const item of args.data) {
+        const exists = db.newsLlmScores.some(
+          (s) => s.newsUrl === item.newsUrl && s.planningHash === item.planningHash
+        );
+        if (args.skipDuplicates && exists) continue;
+        if (!exists) {
+          db.newsLlmScores.push({
+            id: cuid(),
+            createdAt: now(),
+            ...item,
+          });
+        }
+      }
+      await saveDb(db);
     },
   },
 

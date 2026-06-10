@@ -62,6 +62,9 @@ function buildPlanningHeader(
   } else {
     lines.push("- タイトル：（未入力）");
   }
+  if (planning.storyHypothesis) {
+    lines.push(`- 台本仮説：${planning.storyHypothesis}`);
+  }
 
   lines.push(
     "",
@@ -82,37 +85,42 @@ function buildPlanningHeader(
   return lines;
 }
 
-function buildNewsSection(
+async function buildNewsSection(
   data: CoinCollectedData,
   planning: PlanningContext
-): string {
+): Promise<string> {
   if (!data.news.length) {
     return `該当期間（3ヶ月以内）で企画に関連するニュースは見つかりませんでした。
-サムネ・タイトルのキーワードを調整するか、手動でニュースを追加してください。`;
+    サムネ・タイトルのキーワードを調整するか、手動でニュースを追加してください。`;
   }
 
-  const topNews = selectTopNews(
+  const topNews = await selectTopNews(
     data.news,
     planning,
     data.coin.keywords,
     NEWS_OUTPUT_LIMIT
   );
 
-  const header = `### 台本採用ニュース TOP${NEWS_OUTPUT_LIMIT}（全${data.news.length}件収集 → サムネ・タイトル・検索ワードで精査）
+  const scoringMethod = planning.thumbnailText || planning.titleText || planning.storyHypothesis
+    ? "AI意味スコア（鮮度20＋インパクト20＋台本貢献度60）"
+    : "キーワードスコア（鮮度20＋コイン関連20＋一致度60）";
 
-採用基準：企画キーワード一致度（×3）＋コイン関連度＋新しさ`;
+  const header = `### 台本採用ニュース TOP${NEWS_OUTPUT_LIMIT}（全${data.news.length}件収集 → AI意味解析で精査）
+
+採用基準：${scoringMethod}`;
 
   const blocks = topNews.map((ranked, i) => {
-    const { item, rankScore, planningScore } = ranked;
+    const { item, rankScore, freshnessScore, impactScore, relevanceScore, llmReason } = ranked;
     const body = `${item.title} ${item.summary}`;
     const highlights = extractNumericHighlights(body);
     const label = RANK_LABELS[i] ?? `${i + 1}位`;
-    const hookIdea =
-      planningScore > 0
-        ? `企画キーワードと一致（企画スコア${planningScore}）。サムネ・タイトルのフック回収に最適`
+    const hookIdea = llmReason
+      ? `AI判定：${llmReason}`
+      : relevanceScore >= 40
+        ? `台本貢献度が高い（スコア${relevanceScore}/60）。根拠素材として直接活用可`
         : "コイン関連ニュースとして根拠素材に使える。企画との接続を手動で補強推奨";
 
-    return `#### ${label} ランキング${i + 1}位｜総合スコア：${rankScore}
+    return `#### ${label} ランキング${i + 1}位｜総合スコア：${rankScore}/100（鮮度${freshnessScore}＋インパクト${impactScore}＋貢献度${relevanceScore}）
 **${item.title}**
 - 日付：${formatDate(item.publishedAt)}${ageLabel(item.publishedAt)}
 - ソース：${item.source}
@@ -221,6 +229,7 @@ function buildCompetitorReport(
     "**対象企画**",
     planning.thumbnailText ? `- サムネ：${planning.thumbnailText}` : "- サムネ：（未入力）",
     planning.titleText ? `- タイトル：${planning.titleText}` : "- タイトル：（未入力）",
+    ...(planning.storyHypothesis ? [`- 台本仮説：${planning.storyHypothesis}`] : []),
     "",
     `**リサーチ実施日：${date}**`,
     "",
@@ -324,16 +333,16 @@ ${t.trendReversalCondition}
 **下落：** ${t.scenarios.bearish.entry} → 利確 ${t.scenarios.bearish.takeProfit1}`;
 }
 
-export function generateCoinReportMarkdown(
+export async function generateCoinReportMarkdown(
   data: CoinCollectedData,
   technical: TechnicalAnalysis | null,
   planning: PlanningContext
-): string {
+): Promise<string> {
   const sections: string[] = [];
 
   if (data.mode === "fundamentals" || data.mode === "both") {
     sections.push(...buildPlanningHeader(data.coin, planning));
-    sections.push(buildNewsSection(data, planning));
+    sections.push(await buildNewsSection(data, planning));
 
     sections.push(
       "",

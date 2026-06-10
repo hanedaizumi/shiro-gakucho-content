@@ -108,7 +108,7 @@ export async function runCoinResearchPipeline(
     }
 
     await updateJob(jobId, "report_generating", "リサーチレポートを生成中...");
-    const reportMd = generateCoinReportMarkdown(collected, technical, planning);
+    const reportMd = await generateCoinReportMarkdown(collected, technical, planning);
 
     await prisma.report.create({
       data: {

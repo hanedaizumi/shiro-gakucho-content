@@ -29,8 +29,9 @@ model ResearchJob {
   coinName     String?
   researchMode String?
   outputMode   String?
-  thumbnailText String?
-  titleText    String?
+  thumbnailText   String?
+  titleText       String?
+  storyHypothesis String?
   startedAt    DateTime          @default(now())
   completedAt  DateTime?
   errorMessage String?
@@ -103,4 +104,16 @@ model ScriptHistory {
 model AppSetting {
   id    String @id @default("default")
   value Json
+}
+
+model NewsLlmScore {
+  id             String   @id @default(cuid())
+  newsUrl        String
+  planningHash   String
+  impactScore    Int
+  relevanceScore Int
+  reason         String?
+  createdAt      DateTime @default(now())
+
+  @@unique([newsUrl, planningHash])
 }

@@ -64,6 +64,7 @@ export async function runUnifiedPipeline(
     scriptNumber?: number;
     thumbnailText?: string;
     titleText?: string;
+    storyHypothesis?: string;
   }
 ) {
   try {
@@ -73,6 +74,7 @@ export async function runUnifiedPipeline(
     const planning: PlanningContext = normalizePlanning({
       thumbnailText: options.thumbnailText,
       titleText: options.titleText,
+      storyHypothesis: options.storyHypothesis,
     });
     const includeReport =
       options.outputMode === "report" || options.outputMode === "report_and_script";
@@ -94,6 +96,7 @@ export async function runUnifiedPipeline(
         outputMode: options.outputMode,
         thumbnailText: planning.thumbnailText || null,
         titleText: planning.titleText || null,
+        storyHypothesis: planning.storyHypothesis || null,
       },
     });
 
@@ -172,7 +175,7 @@ export async function runUnifiedPipeline(
         effectiveMode === "fundamentals" || effectiveMode === "both";
 
       if (includeFundamentals) {
-        reportMd = generateCoinReportMarkdown(collected, technical, planning);
+        reportMd = await generateCoinReportMarkdown(collected, technical, planning);
       } else if (coin.symbol === "BTC" && technical) {
         const ctx = await loadExternalContext(options.scriptNumber);
         const result = await generateReport(
@@ -183,7 +186,7 @@ export async function runUnifiedPipeline(
         reportMd = result.markdown;
         reportJson = result.json as object;
       } else {
-        reportMd = generateCoinReportMarkdown(collected, technical, planning);
+        reportMd = await generateCoinReportMarkdown(collected, technical, planning);
       }
 
       if (coin.symbol === "BTC" && technical && includeScript) {

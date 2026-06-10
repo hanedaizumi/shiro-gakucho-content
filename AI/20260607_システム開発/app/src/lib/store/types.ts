@@ -24,10 +24,21 @@ export interface ResearchJob {
   outputMode?: OutputMode | null;
   thumbnailText?: string | null;
   titleText?: string | null;
+  storyHypothesis?: string | null;
   startedAt: string;
   completedAt?: string | null;
   errorMessage?: string | null;
   manualXPosts?: string | null;
+}
+
+export interface NewsLlmScore {
+  id: string;
+  newsUrl: string;
+  planningHash: string;
+  impactScore: number;
+  relevanceScore: number;
+  reason?: string | null;
+  createdAt: string;
 }
 
 export interface SourceDocument {
@@ -92,4 +103,5 @@ export interface Database {
   reports: Report[];
   scripts: Script[];
   scriptHistory: ScriptHistory[];
+  newsLlmScores: NewsLlmScore[];
 }

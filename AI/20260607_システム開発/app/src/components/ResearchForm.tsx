@@ -24,6 +24,7 @@ export default function ResearchForm() {
   const [coinInput, setCoinInput] = useState("ビットコイン BTC");
   const [thumbnailText, setThumbnailText] = useState("");
   const [titleText, setTitleText] = useState("");
+  const [storyHypothesis, setStoryHypothesis] = useState("");
   const [researchMode, setResearchMode] = useState<ResearchMode>("both");
   const [outputMode, setOutputMode] = useState<OutputMode>("report_and_script");
   const [scriptNumber, setScriptNumber] = useState("");
@@ -47,6 +48,7 @@ export default function ResearchForm() {
           coinInput: coinInput.trim(),
           thumbnailText: thumbnailText.trim(),
           titleText: titleText.trim(),
+          storyHypothesis: storyHypothesis.trim(),
           researchMode,
           outputMode,
           scriptNumber: scriptNumber ? parseInt(scriptNumber, 10) : undefined,
@@ -107,7 +109,24 @@ export default function ResearchForm() {
       </div>
 
       <div>
-        <label className="mb-2 block text-sm text-[var(--muted)]">④ リサーチ種別</label>
+        <label className="mb-1 block text-sm text-[var(--muted)]">
+          ④ 台本の方向性・仮説
+          <span className="ml-1 text-xs opacity-60">（任意）</span>
+        </label>
+        <textarea
+          value={storyHypothesis}
+          onChange={(e) => setStoryHypothesis(e.target.value)}
+          rows={3}
+          className="w-full rounded-lg border border-[var(--border)] bg-[var(--bg)] px-4 py-2 text-sm resize-none"
+          placeholder="例: ゴールドマンの売却を「逃げ」ではなく在庫調整と解釈し、ETF流入＋CLARITY法案で中長期の買い場を提示するストーリーにしたい"
+        />
+        <p className="mt-1 text-xs text-[var(--muted)]">
+          入力するとAIがニュースの関連度を意味レベルで判定します。未入力でも動作します
+        </p>
+      </div>
+
+      <div>
+        <label className="mb-2 block text-sm text-[var(--muted)]">⑤ リサーチ種別</label>
         <div className="space-y-2">
           {RESEARCH_OPTIONS.map((opt) => (
             <label
@@ -136,7 +155,7 @@ export default function ResearchForm() {
       </div>
 
       <div>
-        <label className="mb-2 block text-sm text-[var(--muted)]">⑤ 出力形式</label>
+        <label className="mb-2 block text-sm text-[var(--muted)]">⑥ 出力形式</label>
         <div className="space-y-2">
           {OUTPUT_OPTIONS.map((opt) => (
             <label

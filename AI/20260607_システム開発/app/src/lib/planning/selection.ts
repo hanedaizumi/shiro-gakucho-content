@@ -5,6 +5,7 @@ import {
   scorePlanningRelevance,
   type PlanningContext,
 } from "./context";
+import { scoreNewsWithLlm } from "./news-llm-scorer";
 
 export const NEWS_COLLECT_LIMIT = 40;
 export const NEWS_OUTPUT_LIMIT = 5;
@@ -12,40 +13,109 @@ export const YOUTUBE_COLLECT_LIMIT = 10;
 export const YOUTUBE_OUTPUT_DOMESTIC = 3;
 export const YOUTUBE_OUTPUT_INTERNATIONAL = 2;
 
+/** ニュースの最大許容経過日数（足切りライン） */
+const MAX_NEWS_AGE_DAYS = 90;
+
 export interface RankedNewsItem {
   item: NewsItem;
+  /** 総合スコア（100点満点：鮮度20 + インパクト20 + 台本貢献度60） */
   rankScore: number;
+  freshnessScore: number;  // 0-20
+  impactScore: number;     // 0-20（LLM判定）
+  relevanceScore: number;  // 0-60（LLM判定）
+  /** 後方互換用：LLM貢献度スコアを正規化した値 */
   planningScore: number;
-  freshnessScore: number;
+  llmReason?: string;
 }
 
+/**
+ * 鮮度スコア（0-20点・なだらかな減衰・90日で足切り）
+ */
 function newsFreshnessScore(publishedAt: string): number {
   const ageDays =
     (Date.now() - new Date(publishedAt).getTime()) / (24 * 60 * 60 * 1000);
-  if (ageDays <= 14) return 3;
-  if (ageDays <= 30) return 2;
-  if (ageDays <= 90) return 1;
+  if (ageDays <= 1) return 20;
+  if (ageDays <= 3) return 16;
+  if (ageDays <= 7) return 12;
+  if (ageDays <= 14) return 8;
+  if (ageDays <= 30) return 4;
+  if (ageDays <= 60) return 2;
+  if (ageDays <= MAX_NEWS_AGE_DAYS) return 1;
   return 0;
 }
 
-export function rankNewsForScript(
+/**
+ * LLM呼び出し前のプログラム足切り：
+ * コイン関連キーワードを1つも含まない記事は除外してAPI呼び出しを最小化する
+ */
+function preFilterForLlm(
+  news: NewsItem[],
+  coinKeywords: string[],
+  planningKw: string[]
+): NewsItem[] {
+  const allKw = [...coinKeywords, ...planningKw].map((k) => k.toLowerCase());
+  return news.filter((item) => {
+    const body = `${item.title} ${item.summary}`.toLowerCase();
+    return allKw.some((kw) => body.includes(kw));
+  });
+}
+
+export async function rankNewsForScript(
   news: NewsItem[],
   planning: PlanningContext,
   coinKeywords: string[]
-): RankedNewsItem[] {
+): Promise<RankedNewsItem[]> {
   const planningKw = extractPlanningKeywords(planning);
 
-  return news
-    .map((item) => {
-      const body = `${item.title} ${item.summary}`;
-      const planningScore = scorePlanningRelevance(body, planningKw);
-      const coinScore = coinKeywords.filter((kw) =>
-        body.toLowerCase().includes(kw.toLowerCase())
-      ).length;
-      const freshnessScore = newsFreshnessScore(item.publishedAt);
-      const rankScore = planningScore * 3 + coinScore + freshnessScore;
+  // 90日超を除外
+  const fresh = news.filter(
+    (item) =>
+      (Date.now() - new Date(item.publishedAt).getTime()) /
+        (24 * 60 * 60 * 1000) <=
+      MAX_NEWS_AGE_DAYS
+  );
 
-      return { item, rankScore, planningScore, freshnessScore };
+  // LLM前の足切り（コスト削減）
+  const candidates = preFilterForLlm(fresh, coinKeywords, planningKw);
+
+  // LLM採点（DBキャッシュ優先）
+  const llmScores = await scoreNewsWithLlm(candidates, planning);
+
+  return fresh
+    .map((item) => {
+      const freshnessScore = newsFreshnessScore(item.publishedAt);
+      const llm = item.url ? llmScores.get(item.url) : undefined;
+
+      let impactScore: number;
+      let relevanceScore: number;
+      let llmReason: string | undefined;
+
+      if (llm) {
+        impactScore = llm.impactScore;
+        relevanceScore = llm.relevanceScore;
+        llmReason = llm.reason;
+      } else {
+        // LLMスコアなし（足切り対象）：キーワードスコアでフォールバック
+        const body = `${item.title} ${item.summary}`;
+        const kws = scorePlanningRelevance(body, planningKw);
+        const coinHits = coinKeywords.filter((kw) =>
+          body.toLowerCase().includes(kw.toLowerCase())
+        ).length;
+        impactScore = Math.min(coinHits * 4, 20);
+        relevanceScore = Math.min(kws * 10, 60);
+      }
+
+      const rankScore = freshnessScore + impactScore + relevanceScore;
+
+      return {
+        item,
+        rankScore,
+        freshnessScore,
+        impactScore,
+        relevanceScore,
+        planningScore: Math.round(relevanceScore / 10),
+        llmReason,
+      };
     })
     .sort((a, b) => {
       if (b.rankScore !== a.rankScore) return b.rankScore - a.rankScore;
@@ -56,13 +126,13 @@ export function rankNewsForScript(
     });
 }
 
-export function selectTopNews(
+export async function selectTopNews(
   news: NewsItem[],
   planning: PlanningContext,
   coinKeywords: string[],
   limit = NEWS_OUTPUT_LIMIT
-): RankedNewsItem[] {
-  return rankNewsForScript(news, planning, coinKeywords).slice(0, limit);
+): Promise<RankedNewsItem[]> {
+  return (await rankNewsForScript(news, planning, coinKeywords)).slice(0, limit);
 }
 
 function scoreYouTubeForScript(
