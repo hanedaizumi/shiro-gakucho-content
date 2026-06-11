@@ -96,6 +96,18 @@ export interface ScriptHistory {
   createdAt: string;
 }
 
+/** ⑤で取り上げた概念の履歴（重複防止用） */
+export interface ConceptLog {
+  id: string;
+  /** 概念名（例: "RSIダイバージェンスと清算の連鎖"） */
+  name: string;
+  /** 紐づく台本番号（あれば）。同じ番号での再生成時は上書きされる */
+  scriptNumber?: number | null;
+  /** 使用日（YYYY-MM-DD）。台本番号なしの場合は同日再生成で上書き */
+  date: string;
+  createdAt: string;
+}
+
 export interface Database {
   jobs: ResearchJob[];
   sources: SourceDocument[];
@@ -104,4 +116,5 @@ export interface Database {
   scripts: Script[];
   scriptHistory: ScriptHistory[];
   newsLlmScores: NewsLlmScore[];
+  conceptLog: ConceptLog[];
 }

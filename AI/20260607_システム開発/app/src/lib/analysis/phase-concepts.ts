@@ -14,35 +14,91 @@ export type PhaseConcept =
   | "オーダーブロック"
   | "上昇ウェッジのブレイク"
   | "逆三尊の正しい見方"
-  | "エリオット波動・第三波";
+  | "エリオット波動・第三波"
+  | "ATRを使った損切り・利確の科学"
+  | "出来高で見抜く本物のブレイク"
+  | "ローソク足のヒゲが語る攻防（ピンバー）";
+
+/**
+ * 過去動画で既に取り上げたテーマ（恒久除外）。
+ * ここに含まれるキーワードにマッチする概念は二度と⑤の主題に選ばれない。
+ */
+export const PERMANENTLY_COVERED_TOPICS = [
+  "移動平均線",
+  "逆三尊",
+  "リテスト",
+  "VWAP",
+] as const;
+
+/** 概念ごとのトピックキーワード（重複判定用。表記揺れを吸収する） */
+const CONCEPT_TOPIC_KEYWORDS: Record<PhaseConcept, string[]> = {
+  "RSIダイバージェンスと清算の連鎖": ["ダイバージェンス", "清算の連鎖"],
+  "200日移動平均線との乖離率": ["移動平均", "乖離率", "200日MA", "200MA"],
+  "価格帯出来高": ["価格帯出来高", "出来高プロファイル", "VPVR", "POC"],
+  "ボリンジャーバンド・スクイーズ": ["ボリンジャー", "スクイーズ"],
+  "ダウ理論の厳密定義": ["ダウ理論"],
+  "フィボナッチ0.618": ["フィボナッチ"],
+  "オーダーブロック": ["オーダーブロック", "SMC"],
+  "上昇ウェッジのブレイク": ["ウェッジ"],
+  "逆三尊の正しい見方": ["逆三尊", "三尊", "ヘッドアンドショルダー"],
+  "エリオット波動・第三波": ["エリオット"],
+  "ATRを使った損切り・利確の科学": ["ATR", "損切り幅"],
+  "出来高で見抜く本物のブレイク": ["ダマシ", "ブレイクの真偽", "出来高で見抜く"],
+  "ローソク足のヒゲが語る攻防（ピンバー）": ["ピンバー", "ヒゲ分析", "プライスアクション"],
+};
+
+/** 使用済みリスト（過去テーマ）と概念がトピックレベルで重複するか判定する */
+export function isConceptCovered(name: PhaseConcept, usedConcepts: string[]): boolean {
+  const allUsed = [...usedConcepts, ...PERMANENTLY_COVERED_TOPICS];
+  const keywords = [...(CONCEPT_TOPIC_KEYWORDS[name] ?? []), name];
+  return allUsed.some((u) => {
+    if (!u) return false;
+    if (u.includes(name) || name.includes(u)) return true;
+    return keywords.some((k) => u.includes(k) || k.includes(u));
+  });
+}
 
 export const PHASE_CONCEPT_MAP: Record<MarketPhase, PhaseConcept[]> = {
   crash_bottom: [
     "RSIダイバージェンスと清算の連鎖",
     "200日移動平均線との乖離率",
     "逆三尊の正しい見方",
+    "ローソク足のヒゲが語る攻防（ピンバー）",
+    "価格帯出来高",
+    "ATRを使った損切り・利確の科学",
   ],
   range: [
     "価格帯出来高",
     "ボリンジャーバンド・スクイーズ",
     "ダウ理論の厳密定義",
+    "出来高で見抜く本物のブレイク",
+    "ATRを使った損切り・利確の科学",
   ],
   strong_trend_bull: [
     "エリオット波動・第三波",
     "フィボナッチ0.618",
     "オーダーブロック",
+    "出来高で見抜く本物のブレイク",
+    "ATRを使った損切り・利確の科学",
   ],
   strong_trend_bear: [
     "エリオット波動・第三波",
     "上昇ウェッジのブレイク",
     "オーダーブロック",
+    "ローソク足のヒゲが語る攻防（ピンバー）",
+    "ATRを使った損切り・利確の科学",
   ],
   reversal: [
     "RSIダイバージェンスと清算の連鎖",
     "逆三尊の正しい見方",
     "ダウ理論の厳密定義",
+    "ローソク足のヒゲが語る攻防（ピンバー）",
+    "出来高で見抜く本物のブレイク",
   ],
 };
+
+/** 全概念のフラットリスト（フェーズ候補が全滅した時のフォールバック用） */
+const ALL_CONCEPTS = Object.keys(CONCEPT_TOPIC_KEYWORDS) as PhaseConcept[];
 
 export function pickConceptByPhase(
   phase: MarketPhase,
@@ -51,14 +107,10 @@ export function pickConceptByPhase(
   divHint: PhaseDetectionResult["rsiDivergenceHint"]
 ): { name: PhaseConcept; reason: string; score: number } {
   const candidates = PHASE_CONCEPT_MAP[phase];
-  let best: { name: PhaseConcept; reason: string; score: number } = {
-    name: candidates[0],
-    reason: "",
-    score: 0,
-  };
+  let best: { name: PhaseConcept; reason: string; score: number } | null = null;
 
   for (const name of candidates) {
-    if (usedConcepts.some((u) => u.includes(name) || name.includes(u))) continue;
+    if (isConceptCovered(name, usedConcepts)) continue;
 
     let score = 15;
 
@@ -101,14 +153,34 @@ export function pickConceptByPhase(
         if (Math.abs(t.change7d) > 10) score += 40;
         else if (Math.abs(t.change7d) > 6) score += 20;
         break;
+      case "ATRを使った損切り・利確の科学":
+        // ボラティリティが高い（ATRが価格の3%超）局面で特に刺さる実用テーマ
+        if (t.atr14 / t.currentPrice > 0.03) score += 35;
+        else score += 20;
+        break;
+      case "出来高で見抜く本物のブレイク":
+        if (t.volumeSpike) score += 40;
+        // 重要ラインに近い（±2%）＝ブレイク判定が今週の課題になる
+        if (t.keyLevels.some((l) => Math.abs(l.price - t.currentPrice) / t.currentPrice < 0.02)) score += 25;
+        break;
+      case "ローソク足のヒゲが語る攻防（ピンバー）":
+        if (t.candleCharacteristics.includes("ヒゲ")) score += 40;
+        if (phase === "crash_bottom" || phase === "reversal") score += 15;
+        break;
     }
 
-    if (score > best.score) {
+    if (!best || score > best.score) {
       best = { name, reason: buildPhaseConceptReason(name, t, divHint), score };
     }
   }
 
-  if (!best.reason) best.reason = buildPhaseConceptReason(best.name, t, divHint);
+  // フェーズ候補が全て使用済みの場合、全概念から未使用のものを探す
+  if (!best) {
+    const fallback = ALL_CONCEPTS.find((n) => !isConceptCovered(n, usedConcepts));
+    const name = fallback ?? "ATRを使った損切り・利確の科学";
+    best = { name, reason: buildPhaseConceptReason(name, t, divHint), score: 10 };
+  }
+
   return best;
 }
 
@@ -126,6 +198,12 @@ function buildPhaseConceptReason(
       return "出来高密集帯が今週の攻防ライン";
     case "ボリンジャーバンド・スクイーズ":
       return "ボラティリティ収縮後のブレイクを警戒";
+    case "ATRを使った損切り・利確の科学":
+      return `ATR${formatPrice(t.atr14)}ドルの高ボラ局面。損切り幅の設計が勝敗を分ける`;
+    case "出来高で見抜く本物のブレイク":
+      return "重要ライン攻防中。ブレイクの真偽判定が今週の最重要スキル";
+    case "ローソク足のヒゲが語る攻防（ピンバー）":
+      return "ヒゲが連続する攻防局面。1本のローソク足から売り買いの力関係を読む";
     default:
       return `${name}が今週のフェーズに最適`;
   }

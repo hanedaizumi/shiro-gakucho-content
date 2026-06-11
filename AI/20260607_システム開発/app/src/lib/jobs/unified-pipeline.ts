@@ -139,14 +139,43 @@ export async function runUnifiedPipeline(
     });
 
     let technical = null;
+    let usedConceptsForReport: string[] = [];
     if (needsTechnical(effectiveMode, options.outputMode, coin.symbol)) {
       await updateJob(jobId, "analyzing", "テクニカル分析を実行中...");
       const ctx = coin.symbol === "BTC" ? await loadExternalContext() : null;
+
+      // 永続化された概念使用履歴（GCS/store.json）を読み込む。
+      // 今回の台本番号（または番号なしなら今日）のエントリは除外し、
+      // 同じレポートの再生成で概念が無駄に切り替わらないようにする。
+      const today = new Date().toISOString().split("T")[0];
+      const conceptHistory = await prisma.conceptLog.findMany();
+      const persistedUsed = conceptHistory
+        .filter((e) =>
+          options.scriptNumber != null
+            ? e.scriptNumber !== options.scriptNumber
+            : !(e.scriptNumber == null && e.date === today)
+        )
+        .map((e) => e.name);
+
+      usedConceptsForReport = [
+        ...new Set([...(ctx?.usedConcepts ?? []), ...persistedUsed]),
+      ];
+
       technical = runTechnicalAnalysis(
         collectedData,
-        ctx?.usedConcepts ?? [],
+        usedConceptsForReport,
         planning.tradingBias
       );
+
+      // 今回選定された概念を履歴に記録（次回以降は重複しない）
+      if (coin.symbol === "BTC" && technical.conceptSuggestion?.name) {
+        await prisma.conceptLog
+          .record({
+            name: technical.conceptSuggestion.name,
+            scriptNumber: options.scriptNumber ?? null,
+          })
+          .catch(() => {});
+      }
 
       await prisma.marketSnapshot.createMany({
         data: [
@@ -183,7 +212,8 @@ export async function runUnifiedPipeline(
       const result = await generateReport(
         collectedData,
         technical,
-        userPreviousScript ?? ctx.previousScript
+        userPreviousScript ?? ctx.previousScript,
+        usedConceptsForReport
       );
       reportMd = result.markdown;
       reportJson = result.json as object;
@@ -193,7 +223,8 @@ export async function runUnifiedPipeline(
       const technicalResult = await generateReport(
         collectedData,
         technical,
-        userPreviousScript ?? ctx.previousScript
+        userPreviousScript ?? ctx.previousScript,
+        usedConceptsForReport
       );
       const fundamentalsMd = await generateCoinReportMarkdown(collected, technical, planning);
       reportMd = `${technicalResult.markdown}\n\n---\n\n${fundamentalsMd}`;

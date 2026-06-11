@@ -313,7 +313,8 @@ function buildScenarioTable(s: TradeScenario): string {
 function buildReportMarkdown(
   json: ReportJson,
   date: string,
-  previousScript: PreviousScriptContext | null
+  previousScript: PreviousScriptContext | null,
+  excludedConceptTopics: string[] = []
 ): string {
   const t = json.technical;
   const b = json.scenarios.bullish as Record<string, unknown>;
@@ -456,6 +457,7 @@ ${youtubeBlock}
 
 ## ⑤ 今週の重要ポイント：${wc.name}
 > **選定理由**: ${wc.reason}
+> **重複チェック**: 過去に取り上げたテーマ（${["移動平均線", "逆三尊", "リテスト", "VWAP", ...excludedConceptTopics].filter((v, i, a) => a.indexOf(v) === i).join("・")}）は除外して選定済み
 
 **1. 簡単に定義（10秒で「これは〜のことです」）**
 ${wc.definition ?? wc.reason}
@@ -517,12 +519,13 @@ ${json.externalSummary.news && (json.externalSummary.news as unknown[]).length >
 export async function generateReport(
   data: CollectedData,
   technical: TechnicalAnalysis,
-  previousScript: PreviousScriptContext | null
+  previousScript: PreviousScriptContext | null,
+  excludedConceptTopics: string[] = []
 ): Promise<{ markdown: string; json: ReportJson }> {
   const json = buildReportJson(data, technical, previousScript);
   const date = new Date().toISOString().split("T")[0];
   // 台本構成①〜⑪に対応した構造化フォーマットを確実に出力するため、
   // LLMによる書き直しは行わずルールベースのMarkdownを返す
-  const ruleBasedMd = buildReportMarkdown(json, date, previousScript);
+  const ruleBasedMd = buildReportMarkdown(json, date, previousScript, excludedConceptTopics);
   return { markdown: ruleBasedMd, json };
 }

@@ -1,6 +1,7 @@
 import { mkdir, readFile, writeFile } from "fs/promises";
 import path from "path";
 import type {
+  ConceptLog,
   Database,
   JobStatus,
   MarketSnapshot,
@@ -56,6 +57,7 @@ async function loadDb(): Promise<Database> {
       scripts: [],
       scriptHistory: [],
       newsLlmScores: [],
+      conceptLog: [],
     };
   }
 }
@@ -63,6 +65,7 @@ async function loadDb(): Promise<Database> {
 function ensureDb(db: Database): Database {
   if (!db.newsLlmScores) db.newsLlmScores = [];
   if (!db.scriptHistory) db.scriptHistory = [];
+  if (!db.conceptLog) db.conceptLog = [];
   return db;
 }
 
@@ -348,6 +351,53 @@ export const store = {
         }
       }
       await saveDb(db);
+    },
+  },
+
+  conceptLog: {
+    async findMany(): Promise<ConceptLog[]> {
+      const db = await loadDb();
+      return [...db.conceptLog].sort((a, b) => b.date.localeCompare(a.date));
+    },
+
+    /**
+     * 使用した概念を記録する。
+     * 同じ台本番号（または番号なしなら同じ日付）の既存エントリは上書きするため、
+     * 同じレポートを再生成しても履歴が増殖しない。
+     */
+    async record(args: {
+      name: string;
+      scriptNumber?: number | null;
+    }): Promise<ConceptLog> {
+      const db = await loadDb();
+      const today = new Date().toISOString().split("T")[0];
+
+      const idx = db.conceptLog.findIndex((e) =>
+        args.scriptNumber != null
+          ? e.scriptNumber === args.scriptNumber
+          : e.scriptNumber == null && e.date === today
+      );
+
+      if (idx >= 0) {
+        db.conceptLog[idx] = {
+          ...db.conceptLog[idx],
+          name: args.name,
+          date: today,
+        };
+        await saveDb(db);
+        return db.conceptLog[idx];
+      }
+
+      const entry: ConceptLog = {
+        id: cuid(),
+        name: args.name,
+        scriptNumber: args.scriptNumber ?? null,
+        date: today,
+        createdAt: now(),
+      };
+      db.conceptLog.push(entry);
+      await saveDb(db);
+      return entry;
     },
   },
 
