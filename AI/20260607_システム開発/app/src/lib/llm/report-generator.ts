@@ -142,7 +142,11 @@ function buildReportJson(
   };
 }
 
-/** 冒頭フック候補（2〜3案）を現在地から生成する */
+/**
+ * 冒頭フック候補（3案）を生成する。
+ * ユーザー指定のバイアス（上昇優先/下落優先）を最優先し、
+ * バイアスが中立の場合のみ市場フェーズ・トレンドに従う。
+ */
 function buildHookCandidates(t: TechnicalAnalysis): string[] {
   const price = formatPrice(t.currentPrice);
   const supports = t.keyLevels.filter((l) => l.type === "support" && l.price <= t.currentPrice).sort((a, b) => b.price - a.price);
@@ -150,59 +154,91 @@ function buildHookCandidates(t: TechnicalAnalysis): string[] {
   const nearS = supports[0] ? formatPrice(supports[0].price) : formatPrice(t.currentPrice * 0.97);
   const nearR = resistances[0] ? formatPrice(resistances[0].price) : formatPrice(t.currentPrice * 1.03);
   const farS = supports[1] ? formatPrice(supports[1].price) : formatPrice(t.currentPrice * 0.93);
+  const farR = resistances[1] ? formatPrice(resistances[1].price) : formatPrice(t.currentPrice * 1.06);
+
+  // バイアス指定を最優先。中立なら日足トレンドに従う
+  const direction =
+    t.tradingBias !== "neutral" ? t.tradingBias : t.trend;
 
   const hooks: string[] = [];
 
-  if (t.marketPhase === "crash_bottom") {
+  if (direction === "bullish") {
     hooks.push(
-      `ビットコイン、${nearS}ドルのライン攻防が大詰めです。ここを割ると最悪${farS}ドルまで引きずり込まれるので、本当に気を付けてください！`,
-      `ビットコイン、売られすぎのサインが出揃ってきました！ただ、ここで焦って飛びつくと機関投資家に刈られます。`,
-      `BTCは${price}ドル。歴史的な割安水準に入りましたが、「安い＝買い」と判断すると大損します。今日はその理由と正しい入り方を解説します。`
+      `ビットコイン、反発の条件が揃ってきました！日足RSI${t.rsiDaily.toFixed(0)}の売られすぎ水準からの切り返し。${nearR}ドルを突破できれば、狙いは${farR}ドルです。`,
+      `BTCは${price}ドル。ここからの反発、入っていいタイミングは「2つの条件」が揃った時だけです。今日はエントリーポイントを具体的な数字で解説します。`,
+      `ビットコイン、底打ちのサインが点灯し始めました。ただ、焦って飛びつくと機関に刈られます。「正しい反発の乗り方」を今日は解説します。`
     );
-  } else if (t.marketPhase === "strong_trend_bear" || t.trend === "bearish") {
+    if (t.marketPhase === "crash_bottom" || t.rsiDaily < 30) {
+      hooks.push(
+        `200日MAから${t.ma200Divergence.toFixed(0)}%の歴史的割安圏。過去この水準まで売られた後、BTCは大きく反発しています。今日はその反発シナリオを数字で解説します。`
+      );
+    }
+  } else if (direction === "bearish") {
     hooks.push(
       `ビットコイン${nearS}ドルのライン、崩壊寸前です。最悪のシナリオだと${farS}ドルまで落ちるので警戒してください！`,
-      `BTCの下落、まだ終わっていません。ただ「ある条件」が揃えば絶好の反発ポイントになります。今日はその条件を数字で解説します。`
-    );
-  } else if (t.marketPhase === "strong_trend_bull" || t.trend === "bullish") {
-    hooks.push(
-      `ビットコイン、上昇トレンドが本格化してきました！ただ、ここからの飛び乗りは一番危険です。正しい押し目の拾い方を解説します。`,
-      `BTCは${price}ドルを突破。次の目標は${nearR}ドルですが、その前に1回ふるい落としが来る可能性が高いです。`
+      `BTCの下落、まだ終わっていません。ただ「ある条件」が揃えば絶好の反発ポイントになります。今日はその条件を数字で解説します。`,
+      `ビットコイン、戻りはここまでです。${nearR}ドルから先は売り圧力の壁。今日は下落シナリオの利確ポイントまで具体的に解説します。`
     );
   } else {
     hooks.push(
       `ビットコイン、${nearS}ドルと${nearR}ドルの間で勝負が決まる1週間です。どちらに抜けるかで戦略が180度変わります。`,
-      `今のBTC、非常に難しい局面です。でも「待つべき価格」さえ知っていれば、焦る必要は一切ありません。`
-    );
-  }
-
-  if (t.rsiDaily < 30) {
-    hooks.push(
-      `日足RSIが${t.rsiDaily.toFixed(0)}。ここまで売られたのは過去数回しかありません。ただ、反発を取れる人と取れない人の差は「待ち方」にあります。`
+      `今のBTC、非常に難しい局面です。でも「待つべき価格」さえ知っていれば、焦る必要は一切ありません。`,
+      `BTCは${price}ドル。上に行くか下に行くか、判断材料は出揃っています。今日はその「分かれ目の1本のライン」を解説します。`
     );
   }
 
   return hooks.slice(0, 3);
 }
 
-/** ④現在地の「結論1文＋理由の語り順」を生成する */
+/**
+ * ④現在地の「結論1文＋根拠」を生成する。
+ * バイアス指定がある場合はその方向を主役にし、逆方向は「注意点」として添える。
+ */
 function buildLocationConclusion(t: TechnicalAnalysis): string {
-  const biasWord =
-    t.tradingBias === "bullish" ? "短期反発を狙うタイミング" :
-    t.tradingBias === "bearish" ? "下落継続を警戒するタイミング" :
-    t.trend === "bearish" ? "下落優勢の局面" :
-    t.trend === "bullish" ? "上昇優勢の局面" : "方向感を待つ局面";
+  const sup = t.keyLevels.filter((l) => l.type === "support" && l.price <= t.currentPrice).sort((a, b) => b.price - a.price)[0];
+  const res = t.keyLevels.filter((l) => l.type === "resistance" && l.price >= t.currentPrice).sort((a, b) => a.price - b.price)[0];
 
+  if (t.tradingBias === "bullish") {
+    const reasons: string[] = [];
+    if (t.rsiDaily < 35) reasons.push(`日足RSI${t.rsiDaily.toFixed(0)}の売られすぎ`);
+    if (t.ma200Divergence < -15) reasons.push(`200日MA乖離率${t.ma200Divergence.toFixed(1)}%の歴史的割安水準`);
+    if (sup) reasons.push(`${formatPrice(sup.price)}ドルの買い支えライン`);
+    if (t.candleCharacteristics.includes("下ヒゲ")) reasons.push("日足の下ヒゲ（下値での買い圧力）");
+
+    const caveat =
+      t.trend === "bearish"
+        ? `注意点は、日足の大きなトレンドがまだ下落であること。だから「反発の形」（下ヒゲ＋4時間足陽線確定${res ? `、または${formatPrice(res.price)}ドルの上抜け` : ""}）を確認してから入るのが鉄則です。`
+        : "トレンドも追い風です。押し目を拾う形でエントリーを狙います。";
+
+    return `結論、今週は「短期反発を狙う」タイミングです。${reasons.length > 0 ? `根拠は${reasons.slice(0, 3).join("、")}。` : ""}${caveat}`;
+  }
+
+  if (t.tradingBias === "bearish") {
+    const reasons: string[] = [];
+    if (t.trend === "bearish") reasons.push("日足の高値・安値の切り下がり（ダウ理論の下落継続）");
+    if (res) reasons.push(`${formatPrice(res.price)}ドルの上値の壁`);
+    if (t.candleCharacteristics.includes("上ヒゲ")) reasons.push("日足の上ヒゲ（上値での売り圧力）");
+    if (t.rsiDaily > 60) reasons.push(`日足RSI${t.rsiDaily.toFixed(0)}の過熱感`);
+
+    const caveat =
+      t.rsiDaily < 35
+        ? `注意点は、RSI${t.rsiDaily.toFixed(0)}の売られすぎで短期反発が入りやすいこと。戻りを${res ? formatPrice(res.price) : "上値の壁"}ドルまで引き付けてから売るのが鉄則です。`
+        : "飛びつきショートではなく、戻りを確認してから入ります。";
+
+    return `結論、今週は「下落継続を前提に戻り売りを狙う」タイミングです。${reasons.length > 0 ? `根拠は${reasons.slice(0, 3).join("、")}。` : ""}${caveat}`;
+  }
+
+  // 中立：データのままに語る
   if (t.marketPhase === "crash_bottom") {
-    return `結論、今は「売られすぎ＋買い支え待ち」の${biasWord}です。大きなトレンドは下落。ただ、歴史的な割安水準まで売られているため、反発の条件が揃いつつあります。`;
+    return `結論、今は「売られすぎ＋買い支え待ち」の局面です。大きなトレンドは下落。ただ、歴史的な割安水準まで売られているため、反発の条件が揃いつつあります。`;
   }
   if (t.trend === "bearish") {
-    return `結論、今は${biasWord}です。大きなトレンドは下落。ただし一時的な反発もあり得るので、両方のシナリオを準備しておく必要があります。`;
+    return `結論、今は下落優勢の局面です。ただし一時的な反発もあり得るので、両方のシナリオを準備しておく必要があります。`;
   }
   if (t.trend === "bullish") {
-    return `結論、今は${biasWord}です。トレンドは上方向。ただし飛び乗りではなく、押し目を待ってから入るのが正解です。`;
+    return `結論、今は上昇優勢の局面です。ただし飛び乗りではなく、押し目を待ってから入るのが正解です。`;
   }
-  return `結論、今は${biasWord}です。レンジの上限・下限どちらに抜けるかを見極めるまで、ポジションは軽めが正解です。`;
+  return `結論、今は方向感を待つ局面です。レンジの上限・下限どちらに抜けるかを見極めるまで、ポジションは軽めが正解です。`;
 }
 
 /** バイアスと逆方向の根拠（両論併記用）を2〜3個生成する */
@@ -259,21 +295,25 @@ function formatLevelRow(l: KeyLevel): string {
   return `| ${formatPrice(l.price)} | ${typeLabel} | ${l.reason} | ${history} |`;
 }
 
-/** 30秒まとめ案を生成する */
+/** 30秒まとめ案を生成する（バイアス指定を主軸に組み立てる） */
 function build30sSummary(t: TechnicalAnalysis, conceptName: string): string {
-  const trendWord = t.trend === "bearish" ? "下落優勢" : t.trend === "bullish" ? "上昇優勢" : "レンジ";
   const sup = t.keyLevels.filter((l) => l.type === "support" && l.price <= t.currentPrice).sort((a, b) => b.price - a.price)[0];
   const res = t.keyLevels.filter((l) => l.type === "resistance" && l.price >= t.currentPrice).sort((a, b) => a.price - b.price)[0];
 
-  const counterLine =
-    t.rsiDaily < 35
-      ? `ただ売られすぎ${sup ? `かつ${formatPrice(sup.price)}ドルの強いサポートもある` : ""}ことから、短期的には反発する可能性も十分にあり。`
-      : t.rsiDaily > 65
-      ? `ただ買われすぎ圏に近いため、短期調整には注意。`
-      : `重要ラインは${sup ? `下が${formatPrice(sup.price)}ドル` : ""}${sup && res ? "、" : ""}${res ? `上が${formatPrice(res.price)}ドル` : ""}。`;
+  let mainLine: string;
+  if (t.tradingBias === "bullish") {
+    mainLine = `今のビットコインは${formatPrice(t.currentPrice)}ドル付近。${t.trend === "bearish" ? "日足はまだ下落トレンドですが、" : ""}${t.rsiDaily < 35 ? `RSI${t.rsiDaily.toFixed(0)}の売られすぎ` : "条件の揃い方"}${sup ? `と${formatPrice(sup.price)}ドルのサポート` : ""}から、今週の基本戦略は「反発の形を確認してロング」です。
+${res ? `${formatPrice(res.price)}ドルを実体で上抜ければ反発本格化。` : ""}逆に${sup ? `${formatPrice(sup.price)}ドル割れなら一旦撤退` : "サポート割れなら一旦撤退"}。ルールはシンプルです。`;
+  } else if (t.tradingBias === "bearish") {
+    mainLine = `今のビットコインは${formatPrice(t.currentPrice)}ドル付近で下落優勢。
+今週の基本戦略は${res ? `「${formatPrice(res.price)}ドルへの戻りを待って売る」` : "「戻り売り」"}です。${t.rsiDaily < 35 ? `ただRSI${t.rsiDaily.toFixed(0)}の売られすぎで短期反発は入りやすいので、飛びつきショートはNG。` : ""}`;
+  } else {
+    const trendWord = t.trend === "bearish" ? "下落優勢" : t.trend === "bullish" ? "上昇優勢" : "レンジ";
+    mainLine = `今のビットコインは${formatPrice(t.currentPrice)}ドル付近で${trendWord}。
+重要ラインは${sup ? `下が${formatPrice(sup.price)}ドル` : ""}${sup && res ? "、" : ""}${res ? `上が${formatPrice(res.price)}ドル` : ""}。どちらに抜けるかで戦略が変わります。`;
+  }
 
-  return `今のビットコインは${formatPrice(t.currentPrice)}ドル付近で${trendWord}。
-${counterLine}
+  return `${mainLine}
 
 今日紹介した「${conceptName}」は、エントリー精度を上げる必須知識。
 抜けた瞬間に飛びつくのではなく、形を確認してから入るのが正解です。
@@ -314,7 +354,8 @@ function buildReportMarkdown(
   json: ReportJson,
   date: string,
   previousScript: PreviousScriptContext | null,
-  excludedConceptTopics: string[] = []
+  excludedConceptTopics: string[] = [],
+  storyHypothesis = ""
 ): string {
   const t = json.technical;
   const b = json.scenarios.bullish as Record<string, unknown>;
@@ -366,7 +407,8 @@ function buildReportMarkdown(
   const mainLabel = t.tradingBias === "bearish" ? "下落（メイン）" : "上昇（メイン）";
   const subLabel = t.tradingBias === "bearish" ? "上昇（サブ・警戒用）" : "下落（サブ・警戒用）";
   const pullbackScenario = t.scenarios.pullback;
-  const pullbackLabel = t.trend === "bullish" ? "押し目買い（リテスト狙い）" : "戻り売り（リテスト狙い）";
+  const mainDirection = t.tradingBias !== "neutral" ? t.tradingBias : t.trend;
+  const pullbackLabel = mainDirection === "bullish" ? "押し目買い（深押しリテスト狙い）" : "戻り売り（リテスト狙い）";
 
   return `# BTCテクニカルレポート ${date}
 > このレポートは台本①〜⑪セクションのインプット素材です。
@@ -379,7 +421,8 @@ function buildReportMarkdown(
 - **7d変化**: ${t.change7d >= 0 ? "+" : ""}${t.change7d.toFixed(2)}%
 - **市場フェーズ**: ${(json.marketPhase as Record<string, string>)?.label ?? "未判定"}
 - **ATR(14日足)**: ${formatPrice(t.atr14)}ドル（利確幅の基準値）
-- **バイアス設定**: ${biasLabel}
+- **バイアス設定**: ${biasLabel}（フック・結論・シナリオの主軸に反映済み）
+${storyHypothesis ? `- **台本仮説（入力）**: ${storyHypothesis}` : ""}
 ${json.priceVolatility.dominance ? `- **BTCドミナンス**: ${(json.priceVolatility.dominance as number).toFixed(1)}%` : ""}
 
 ---
@@ -520,12 +563,19 @@ export async function generateReport(
   data: CollectedData,
   technical: TechnicalAnalysis,
   previousScript: PreviousScriptContext | null,
-  excludedConceptTopics: string[] = []
+  excludedConceptTopics: string[] = [],
+  storyHypothesis = ""
 ): Promise<{ markdown: string; json: ReportJson }> {
   const json = buildReportJson(data, technical, previousScript);
   const date = new Date().toISOString().split("T")[0];
   // 台本構成①〜⑪に対応した構造化フォーマットを確実に出力するため、
   // LLMによる書き直しは行わずルールベースのMarkdownを返す
-  const ruleBasedMd = buildReportMarkdown(json, date, previousScript, excludedConceptTopics);
+  const ruleBasedMd = buildReportMarkdown(
+    json,
+    date,
+    previousScript,
+    excludedConceptTopics,
+    storyHypothesis
+  );
   return { markdown: ruleBasedMd, json };
 }

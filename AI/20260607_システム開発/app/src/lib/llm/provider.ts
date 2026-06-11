@@ -3,13 +3,35 @@ export interface LlmMessage {
   content: string;
 }
 
+/**
+ * 使用するプロバイダーを決定する。
+ * LLM_PROVIDER 指定があり、かつそのAPIキーが存在すればそれを使用。
+ * そうでなければ「キーが設定されているプロバイダー」を Anthropic > OpenAI > Gemini の優先順で自動選択。
+ */
+function resolveProvider(): "anthropic" | "openai" | "gemini" {
+  const pref = process.env.LLM_PROVIDER;
+  const hasKey = {
+    anthropic: !!process.env.ANTHROPIC_API_KEY,
+    openai: !!process.env.OPENAI_API_KEY,
+    gemini: !!process.env.GEMINI_API_KEY,
+  };
+
+  if (pref === "anthropic" && hasKey.anthropic) return "anthropic";
+  if (pref === "openai" && hasKey.openai) return "openai";
+  if (pref === "gemini" && hasKey.gemini) return "gemini";
+
+  if (hasKey.anthropic) return "anthropic";
+  if (hasKey.openai) return "openai";
+  if (hasKey.gemini) return "gemini";
+
+  return (pref as "anthropic" | "openai" | "gemini") ?? "openai";
+}
+
 export async function callLlm(
   systemPrompt: string,
   userPrompt: string
 ): Promise<string> {
-  const provider = process.env.LLM_PROVIDER ?? "openai";
-
-  switch (provider) {
+  switch (resolveProvider()) {
     case "anthropic":
       return callAnthropic(systemPrompt, userPrompt);
     case "gemini":
@@ -65,7 +87,7 @@ async function callAnthropic(system: string, user: string): Promise<string> {
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      model: process.env.ANTHROPIC_MODEL ?? "claude-sonnet-4-20250514",
+      model: process.env.ANTHROPIC_MODEL ?? "claude-sonnet-4-6",
       max_tokens: 8000,
       system,
       messages: [{ role: "user", content: user }],

@@ -45,13 +45,13 @@ export function buildConfluence(
 
   let actionBridge = "";
   if (phase.phase === "crash_bottom" || phase.phase === "reversal") {
-    actionBridge = `構造は${t.trend === "bearish" ? "下落" : "中立"}だが、${conceptName}が反発条件を示す。${support ? formatPrice(support.price) : formatPrice(t.currentPrice * 0.97)}ドル付近で下ヒゲ＋4時間足陽線確定までロングは待つ。ショートは${resistance ? formatPrice(resistance.price) : formatPrice(t.currentPrice * 1.05)}ドル付近の戻り売りが安全`;
+    actionBridge = `構造は${t.trend === "bearish" ? "下落" : "中立"}だが、売られすぎシグナルが反発条件を示しつつある。${support ? formatPrice(support.price) : formatPrice(t.currentPrice * 0.97)}ドル付近で下ヒゲ＋4時間足陽線確定までロングは待つ。`;
   } else if (phase.phase === "range") {
-    actionBridge = `レンジ上限${resistance ? formatPrice(resistance.price) : "（要確認）"}ドルと下限${support ? formatPrice(support.price) : "（要確認）"}ドルの2本を引く。${conceptName}でブレイク方向を確認してからエントリー`;
+    actionBridge = `レンジ上限${resistance ? formatPrice(resistance.price) : "（要確認）"}ドルと下限${support ? formatPrice(support.price) : "（要確認）"}ドルの2本を引く。出来高とローソク足の形でブレイク方向を確認してからエントリー`;
   } else if (phase.phase === "strong_trend_bull") {
-    actionBridge = `上昇トレンド中は押し目買い。${support ? formatPrice(support.price) : formatPrice(t.currentPrice * 0.97)}ドル付近の反発を${conceptName}で確認してロング`;
+    actionBridge = `上昇トレンド中は押し目買い。${support ? formatPrice(support.price) : formatPrice(t.currentPrice * 0.97)}ドル付近で反発の形（下ヒゲ＋陽線確定）を確認してロング`;
   } else {
-    actionBridge = `下落トレンド中は戻り売り。${resistance ? formatPrice(resistance.price) : formatPrice(t.currentPrice * 1.05)}ドル付近で${conceptName}の条件が揃えばショート`;
+    actionBridge = `下落トレンド中は戻り売り。${resistance ? formatPrice(resistance.price) : formatPrice(t.currentPrice * 1.05)}ドル付近で上ヒゲ陰線などの反落サインが揃えばショート`;
   }
 
   return {

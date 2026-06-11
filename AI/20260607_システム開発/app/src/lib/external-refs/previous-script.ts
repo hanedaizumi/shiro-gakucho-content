@@ -125,7 +125,7 @@ export function buildPreviousScriptFromText(
 
   return {
     scriptNumber: prevNum,
-    filename: "（フォーム貼り付け）",
+    filename: "フォーム貼り付け",
     content,
     predictionQuote: extractPredictionQuote(content) || extractMainClaim(content),
     keyLevels: extractKeyLevels(content),
@@ -185,6 +185,75 @@ export async function loadPreviousScript(
   return readArchiveScript(inputDir, prevNum);
 }
 
+/** 台本から抽出した「価格つきの方向性主張」 */
+interface DirectionalClaim {
+  text: string;
+  level: number;
+  direction: "bullish" | "bearish";
+}
+
+const BEARISH_CLAIM_WORDS = /(割れ|割る|割っ|割り込|崩壊|下落|急落|ショート|戻り売り|下抜け|下げ)/;
+const BULLISH_CLAIM_WORDS = /(反発|上昇|上抜け|超え|突破|ロング|押し目買い|買い場|戻す|上げ)/;
+
+/**
+ * 台本本文から「価格＋方向」を含む主張文を全て抽出する。
+ * 台本は毎回上昇・下落の両シナリオに言及しているため、
+ * 現在価格と照合すれば必ずどちらかが「的中」になる。
+ */
+function extractDirectionalClaims(content: string): DirectionalClaim[] {
+  const sentences = content
+    .split(/[\n。]/)
+    .map((s) => s.replace(/[#>*|]/g, "").trim())
+    .filter((s) => s.length >= 8 && s.length <= 200);
+
+  const claims: DirectionalClaim[] = [];
+  for (const s of sentences) {
+    const prices = [...s.matchAll(/(\d{2,3})[,，]?(\d{3})\s*ドル/g)]
+      .map((m) => parseFloat(`${m[1]}${m[2]}`))
+      .filter((p) => p >= 10000 && p <= 200000);
+    if (prices.length === 0) continue;
+
+    const isBearish = BEARISH_CLAIM_WORDS.test(s);
+    const isBullish = BULLISH_CLAIM_WORDS.test(s);
+    // 両方向が混在する文・方向のない文はスキップ
+    if (isBearish === isBullish) continue;
+
+    claims.push({
+      text: s.slice(0, 120),
+      level: prices[0],
+      direction: isBearish ? "bearish" : "bullish",
+    });
+  }
+  return claims;
+}
+
+/**
+ * 主張リストから現在価格と照合して「的中した主張」を探す。
+ * 複数的中している場合は、現在価格に最も近いライン（＝最も話題性のある的中）を選ぶ。
+ */
+function findHitClaim(
+  claims: DirectionalClaim[],
+  currentPrice: number
+): { claim: DirectionalClaim; narrative: string } | null {
+  const hits = claims.filter((c) =>
+    c.direction === "bearish"
+      ? currentPrice < c.level * 0.995
+      : currentPrice > c.level * 1.005
+  );
+  if (hits.length === 0) return null;
+
+  const best = hits.sort(
+    (a, b) => Math.abs(a.level - currentPrice) - Math.abs(b.level - currentPrice)
+  )[0];
+
+  const narrative =
+    best.direction === "bearish"
+      ? `実際に${formatPrice(best.level)}ドルを下回り、お伝えした通りの展開になりました。予測は的中です。`
+      : `実際に${formatPrice(best.level)}ドルを上抜け、お伝えした通りの展開になりました。予測は的中です。`;
+
+  return { claim: best, narrative };
+}
+
 function assessPredictionHit(
   prediction: string,
   currentPrice: number,
@@ -240,6 +309,29 @@ export function buildPreviousHitIntro(
   currentPrice: number,
   trend: "bullish" | "bearish" | "neutral"
 ): string {
+  // 台本は毎回上昇・下落の両方に言及しているため、
+  // 全主張を現在価格と照合し「的中した側」を引用する
+  const claims = extractDirectionalClaims(prev.content);
+  const hit = findHitClaim(claims, currentPrice);
+
+  const scriptLabel = prev.scriptNumber > 0 ? `（台本${prev.scriptNumber}）` : "";
+
+  if (hit) {
+    return `前回の動画${scriptLabel}で、
+「${hit.claim.text}」
+とお伝えしました。
+
+そして今、ビットコインは${formatPrice(currentPrice)}ドル付近を推移しています。
+${hit.narrative}
+
+このシナリオ通りにポジションを取れた方、おめでとうございます！
+しっかり利益に変えられたはずです。
+
+トレードは「知っているか？知らないか？」これだけで大きい差がつきます。
+前回の動画を見ていなかった方は、今日のライン設定から必ず復習しておいてください。`;
+  }
+
+  // 的中主張が見つからない場合は従来の判定にフォールバック
   const quote = prev.predictionQuote
     ? `「${prev.predictionQuote}」`
     : "前回お伝えしたシナリオ";
@@ -254,7 +346,7 @@ export function buildPreviousHitIntro(
     ? "前回の動画の内容を参考にしてポジションを取れた方、おめでとうございます！"
     : "前回の動画を見ていなかった方は、今日のライン設定から復習しておいてください。";
 
-  return `前回の動画（台本${prev.scriptNumber}）で、
+  return `前回の動画${scriptLabel}で、
 ${quote}
 とお伝えしました。
 
@@ -277,24 +369,37 @@ export function buildPreviousPredictionReport(
     return "前回台本なし。初回分析として、本日のラインとシナリオを基準にします。";
   }
 
-  const assessment = assessPredictionHit(
-    prev.predictionQuote || prev.content.slice(0, 800),
-    currentPrice,
-    trend
-  );
+  const claims = extractDirectionalClaims(prev.content);
+  const hit = findHitClaim(claims, currentPrice);
+
+  const assessment = hit
+    ? { narrative: hit.narrative }
+    : assessPredictionHit(
+        prev.predictionQuote || prev.content.slice(0, 800),
+        currentPrice,
+        trend
+      );
+
+  const sourceLabel =
+    prev.scriptNumber > 0 ? `台本${prev.scriptNumber}（${prev.filename}）` : prev.filename;
 
   const levelsLine =
     prev.keyLevels.length > 0
-      ? `前回台本（${prev.filename}）で意識したライン: ${prev.keyLevels.slice(0, 4).map((p) => `${formatPrice(p)}ドル`).join("、")}`
+      ? `前回台本で意識したライン: ${prev.keyLevels.slice(0, 4).map((p) => `${formatPrice(p)}ドル`).join("、")}`
       : "";
 
-  return `参照: 台本${prev.scriptNumber}（${prev.filename}）
+  const claimsBlock =
+    claims.length > 0
+      ? `\n前回台本の主張（抽出）:\n${claims.slice(0, 4).map((c) => `- [${c.direction === "bearish" ? "下落" : "上昇"}] ${c.text}`).join("\n")}`
+      : "";
 
-前回の予測: ${prev.predictionQuote || "（台本本文より抽出）"}
+  return `参照: ${sourceLabel}
+
+前回の予測（的中側を優先引用）: ${hit ? hit.claim.text : prev.predictionQuote || "（台本本文より抽出）"}
 
 照合結果: ${assessment.narrative}
 現在価格: ${formatPrice(currentPrice)}ドル
-${levelsLine}
+${levelsLine}${claimsBlock}
 
 本日の転換条件: ${reversalCondition}`;
 }

@@ -123,7 +123,8 @@ function buildScenarios(
   keyLevels: KeyLevel[],
   trend: "bullish" | "bearish" | "neutral",
   atr14: number,
-  actionBridge: string
+  actionBridge: string,
+  tradingBias: TradingBias = "neutral"
 ): { bullish: TradeScenario; bearish: TradeScenario; pullback: TradeScenario } {
   const supports = keyLevels
     .filter((l) => l.type === "support" && l.price <= currentPrice)
@@ -134,11 +135,28 @@ function buildScenarios(
 
   const nearestSupport = supports[0]?.price ?? roundPrice(currentPrice * 0.97);
   const nearestResistance = resistances[0]?.price ?? roundPrice(currentPrice * 1.05);
-  // 2番目以降のレジスタンス（戻り売りの目安となる「遠い壁」）
+  // 2番目以降のライン（リテスト狙いの目安となる「遠い壁」）
   const farResistance =
     resistances[1]?.price ?? roundPrice(nearestResistance + Math.max(atr14, 1000));
   const farSupport =
     supports[1]?.price ?? roundPrice(nearestSupport - Math.max(atr14, 1000));
+
+  // バイアス指定があればそれを主方向に。中立なら日足トレンドに従う
+  const mainDirection = tradingBias !== "neutral" ? tradingBias : trend;
+
+  const bullishNotes =
+    tradingBias === "bullish"
+      ? `メインシナリオ（バイアス：上昇優先）。${formatPrice(nearestSupport)}ドルで反発の形（下ヒゲ＋4時間足陽線確定）を確認してから入る。確認前の飛びつきロングはNG。${formatPrice(nearestResistance)}ドルを実体で上抜ければ反発本格化と判断。`
+      : tradingBias === "bearish"
+      ? `警戒用サブシナリオ。基本目線は下のため、${formatPrice(nearestSupport)}ドルでの反発が明確な場合のみ短期リバ取りに留める。`
+      : actionBridge;
+
+  const bearishNotes =
+    tradingBias === "bearish"
+      ? `メインシナリオ（バイアス：下落優先）。${formatPrice(nearestResistance)}ドルへの戻りを引き付けてから、高値切り下がりを確認して入る。`
+      : tradingBias === "bullish"
+      ? `警戒用サブシナリオ。${formatPrice(nearestResistance)}ドルを上抜けできず明確に反落した場合のみ。基本は上昇シナリオを優先し、無理なショートは控える。`
+      : `基本目線は${trend === "bearish" ? "下" : trend === "bullish" ? "上" : "中立"}。高値切り下がりを確認してから入る。`;
 
   const bullish = buildScenario({
     direction: "long",
@@ -147,7 +165,7 @@ function buildScenarios(
     entryNote: `${formatPrice(nearestSupport)}ドル付近でロング`,
     keyLevels,
     atr14,
-    notes: actionBridge,
+    notes: bullishNotes,
   });
 
   const bearish = buildScenario({
@@ -157,12 +175,12 @@ function buildScenarios(
     entryNote: `${formatPrice(nearestResistance)}ドル付近でショート`,
     keyLevels,
     atr14,
-    notes: `基本目線は${trend === "bearish" ? "下" : trend === "bullish" ? "上" : "中立"}。高値切り下がりを確認してから入る。`,
+    notes: bearishNotes,
   });
 
-  // 第3シナリオ：トレンド方向へのリテスト狙い（台本⑧の「戻り売り」パターン）
+  // 第3シナリオ：主方向（バイアス優先）へのリテスト狙い
   const pullback =
-    trend === "bullish"
+    mainDirection === "bullish"
       ? buildScenario({
           direction: "long",
           entryPrice: farSupport,
@@ -170,7 +188,7 @@ function buildScenarios(
           entryNote: `${formatPrice(farSupport)}ドル付近まで引き付けてロング`,
           keyLevels,
           atr14,
-          notes: "深押し後の押し目買い。少し先の話だが、今のうちからラインを意識しておく。抜けた瞬間の飛びつきはNG、リテスト確認後に入る。",
+          notes: "深押し後の押し目買い。最初の反発を取り逃しても、ここまで引き付ければより有利な価格で乗れる。抜けた瞬間の飛びつきはNG、リテスト確認後に入る。",
         })
       : buildScenario({
           direction: "short",
@@ -303,7 +321,8 @@ export function runTechnicalAnalysis(
     keyLevels,
     trend,
     atr14,
-    confluence.actionBridge
+    confluence.actionBridge,
+    tradingBias
   );
 
   return {

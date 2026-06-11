@@ -213,7 +213,8 @@ export async function runUnifiedPipeline(
         collectedData,
         technical,
         userPreviousScript ?? ctx.previousScript,
-        usedConceptsForReport
+        usedConceptsForReport,
+        planning.storyHypothesis
       );
       reportMd = result.markdown;
       reportJson = result.json as object;
@@ -224,7 +225,8 @@ export async function runUnifiedPipeline(
         collectedData,
         technical,
         userPreviousScript ?? ctx.previousScript,
-        usedConceptsForReport
+        usedConceptsForReport,
+        planning.storyHypothesis
       );
       const fundamentalsMd = await generateCoinReportMarkdown(collected, technical, planning);
       reportMd = `${technicalResult.markdown}\n\n---\n\n${fundamentalsMd}`;
