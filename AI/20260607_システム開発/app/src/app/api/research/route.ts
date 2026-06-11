@@ -1,10 +1,9 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { runUnifiedPipeline } from "@/lib/jobs/unified-pipeline";
-import type { CoinResearchMode, OutputMode } from "@/lib/store/types";
+import type { CoinResearchMode } from "@/lib/store/types";
 
 const VALID_MODES: CoinResearchMode[] = ["fundamentals", "technical", "both"];
-const VALID_OUTPUTS: OutputMode[] = ["report", "script", "report_and_script"];
 
 export async function POST(request: Request) {
   try {
@@ -15,8 +14,8 @@ export async function POST(request: Request) {
       storyHypothesis?: string;
       tradingBias?: "bullish" | "bearish" | "neutral";
       researchMode?: CoinResearchMode;
-      outputMode?: OutputMode;
       scriptNumber?: number;
+      previousScriptText?: string;
     };
 
     if (!body.coinInput?.trim()) {
@@ -24,14 +23,13 @@ export async function POST(request: Request) {
     }
 
     const researchMode = body.researchMode ?? "both";
-    const outputMode = body.outputMode ?? "report_and_script";
 
     if (!VALID_MODES.includes(researchMode)) {
       return NextResponse.json({ error: "無効なリサーチ種別です" }, { status: 400 });
     }
-    if (!VALID_OUTPUTS.includes(outputMode)) {
-      return NextResponse.json({ error: "無効な出力形式です" }, { status: 400 });
-    }
+
+    // 台本作成機能は廃止。常にレポートのみ出力する
+    const outputMode = "report" as const;
 
     const job = await prisma.researchJob.create({
       data: {
@@ -56,6 +54,7 @@ export async function POST(request: Request) {
       researchMode,
       outputMode,
       scriptNumber: body.scriptNumber,
+      previousScriptText: body.previousScriptText?.trim(),
     }).catch(console.error);
 
     return NextResponse.json({ jobId: job.id });

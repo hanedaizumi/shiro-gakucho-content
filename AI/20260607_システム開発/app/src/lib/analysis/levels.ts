@@ -58,12 +58,21 @@ export function deriveKeyLevels(
   }
 
   for (const l of lows) {
+    // 直近暴落時はスイング安値が現在値より上に並ぶため、
+    // 上側の安値は「割れた元サポート＝レジスタンス」として扱う
     if (l.price < currentPrice * 1.02) {
       levels.push({
         price: l.price,
         type: "support",
         reason: `${l.date}のスイング安値`,
         strength: l.price < currentPrice ? 3 : 2,
+      });
+    } else {
+      levels.push({
+        price: l.price,
+        type: "resistance",
+        reason: `${l.date}の元サポート（割れて抵抗化）`,
+        strength: 2,
       });
     }
   }
@@ -88,9 +97,9 @@ export function deriveKeyLevels(
   const roundBases = [1000, 5000];
   for (const base of roundBases) {
     const nearest = Math.round(currentPrice / base) * base;
-    for (const offset of [-base, 0, base]) {
+    for (const offset of [-base * 2, -base, 0, base, base * 2]) {
       const p = nearest + offset;
-      if (p > 0 && Math.abs(p - currentPrice) / currentPrice < 0.15) {
+      if (p > 0 && p !== currentPrice && Math.abs(p - currentPrice) / currentPrice < 0.15) {
         levels.push({
           price: p,
           type: p > currentPrice ? "resistance" : "support",
@@ -101,7 +110,50 @@ export function deriveKeyLevels(
     }
   }
 
-  return mergeLevels(levels).slice(0, 10);
+  // 過去90日の安値帯（直近暴落時の下値目安として、過去の主要安値を心理ラインとは別に追加）
+  const lookback = candles.slice(-180);
+  const historicLow = Math.min(...lookback.map((c) => c.low));
+  if (historicLow < currentPrice * 0.98) {
+    levels.push({
+      price: roundPrice(historicLow),
+      type: "support",
+      reason: "過去180日の最安値",
+      strength: 3,
+    });
+  }
+
+  const merged = mergeLevels(levels);
+  attachTouchDates(merged, highs, lows);
+
+  // 上下バランスよく選定：現在値の上から近い順に5本、下から近い順に5本
+  const above = merged
+    .filter((l) => l.price > currentPrice)
+    .sort((a, b) => a.price - b.price)
+    .slice(0, 5);
+  const below = merged
+    .filter((l) => l.price <= currentPrice)
+    .sort((a, b) => b.price - a.price)
+    .slice(0, 5);
+
+  return [...above, ...below].sort((a, b) => b.price - a.price);
+}
+
+/** 各ラインの±1%以内で反発したスイングポイントの日付を収集する */
+function attachTouchDates(
+  levels: KeyLevel[],
+  highs: SwingPoint[],
+  lows: SwingPoint[]
+): void {
+  const allSwings = [...highs, ...lows];
+  for (const level of levels) {
+    const touches = allSwings
+      .filter((s) => Math.abs(s.price - level.price) / level.price < 0.01)
+      .map((s) => s.date)
+      .sort();
+    if (touches.length > 0) {
+      level.touchDates = [...new Set(touches)].slice(0, 5);
+    }
+  }
 }
 
 function mergeLevels(levels: KeyLevel[]): KeyLevel[] {
@@ -114,7 +166,10 @@ function mergeLevels(levels: KeyLevel[]): KeyLevel[] {
     );
     if (existing) {
       existing.strength = Math.max(existing.strength, l.strength);
-      existing.reason = `${existing.reason}、${l.reason}`;
+      // 重複する理由は追加しない
+      if (!existing.reason.includes(l.reason)) {
+        existing.reason = `${existing.reason}、${l.reason}`;
+      }
     } else {
       merged.push({ ...l });
     }

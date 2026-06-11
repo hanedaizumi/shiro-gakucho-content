@@ -9,7 +9,7 @@ param(
   [string]$ServiceName = "shiro-research-app"
 )
 
-$ErrorActionPreference = "Stop"
+$ErrorActionPreference = "Continue"
 $Root = Split-Path -Parent $PSScriptRoot
 $Gcloud = Join-Path $Root ".tools\google-cloud-sdk\bin\gcloud.cmd"
 $EnvFile = Join-Path $Root "app\.env"
@@ -55,10 +55,10 @@ Write-Host "==> Project: $ProjectId" -ForegroundColor Cyan
 Write-Host "==> Region : $Region" -ForegroundColor Cyan
 Write-Host "==> Service: $ServiceName" -ForegroundColor Cyan
 
-& $Gcloud config set project $ProjectId | Out-Null
+& $Gcloud config set project $ProjectId *>&1 | Out-Null
 
 Write-Host "==> Enabling required APIs..." -ForegroundColor Cyan
-& $Gcloud services enable run.googleapis.com cloudbuild.googleapis.com artifactregistry.googleapis.com secretmanager.googleapis.com --quiet
+& $Gcloud services enable run.googleapis.com cloudbuild.googleapis.com artifactregistry.googleapis.com secretmanager.googleapis.com --quiet *>&1 | Out-Null
 
 $envVars = @(
   "LLM_PROVIDER=openai",

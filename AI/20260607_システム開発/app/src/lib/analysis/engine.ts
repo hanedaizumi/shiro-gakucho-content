@@ -59,13 +59,72 @@ function resolveTP(
   }
 }
 
+/**
+ * 損切り価格を計算する。
+ * 台本の損切り感覚（エントリーラインの「すぐ外側」）に合わせ、
+ * ラインから ATR×0.5 をバッファとして置く。最低300ドル・最大1,500ドル幅。
+ */
+function resolveSL(
+  entryPrice: number,
+  direction: "long" | "short",
+  atr14: number
+): { price: number; amount: number } {
+  const buffer = Math.min(Math.max(atr14 * 0.5, 300), 1500);
+  const price =
+    direction === "long"
+      ? roundPrice(entryPrice - buffer)
+      : roundPrice(entryPrice + buffer);
+  return { price, amount: Math.abs(roundPrice(entryPrice) - price) };
+}
+
+function buildScenario(params: {
+  direction: "long" | "short";
+  entryPrice: number;
+  trigger: string;
+  entryNote: string;
+  keyLevels: KeyLevel[];
+  atr14: number;
+  notes: string;
+}): TradeScenario {
+  const { direction, trigger, entryNote, keyLevels, atr14, notes } = params;
+  const entry = roundPrice(params.entryPrice);
+  const tpDir = direction === "long" ? "up" : "down";
+
+  const sl = resolveSL(entry, direction, atr14);
+
+  const tp1Price = resolveTP(entry, tpDir, keyLevels, atr14);
+  const tp1Amt = Math.abs(tp1Price - entry);
+  const tp2Price = resolveTP(tp1Price, tpDir, keyLevels, atr14);
+  const tp2Amt = Math.abs(tp2Price - entry);
+
+  const rr = sl.amount > 0 ? (tp1Amt / sl.amount).toFixed(1) : "N/A";
+  const slDirWord = direction === "long" ? "割れ" : "上抜け";
+
+  return {
+    trigger,
+    entry: entryNote,
+    entryPrice: entry,
+    stopLoss: `${formatPrice(sl.price)}ドル${slDirWord}（ラインの外側 約${formatPrice(sl.amount)}ドル幅）`,
+    stopLossPrice: sl.price,
+    stopLossAmount: sl.amount,
+    takeProfit1: `${formatPrice(tp1Price)}ドル（${formatPrice(tp1Amt)}ドル幅）`,
+    takeProfit1Price: tp1Price,
+    takeProfit1Amount: roundPrice(tp1Amt),
+    takeProfit2: `${formatPrice(tp2Price)}ドル（${formatPrice(tp2Amt)}ドル幅）`,
+    takeProfit2Price: tp2Price,
+    takeProfit2Amount: roundPrice(tp2Amt),
+    rrRatio: `1:${rr}`,
+    notes,
+  };
+}
+
 function buildScenarios(
   currentPrice: number,
   keyLevels: KeyLevel[],
   trend: "bullish" | "bearish" | "neutral",
   atr14: number,
   actionBridge: string
-): { bullish: TradeScenario; bearish: TradeScenario } {
+): { bullish: TradeScenario; bearish: TradeScenario; pullback: TradeScenario } {
   const supports = keyLevels
     .filter((l) => l.type === "support" && l.price <= currentPrice)
     .sort((a, b) => b.price - a.price);
@@ -75,66 +134,55 @@ function buildScenarios(
 
   const nearestSupport = supports[0]?.price ?? roundPrice(currentPrice * 0.97);
   const nearestResistance = resistances[0]?.price ?? roundPrice(currentPrice * 1.05);
+  // 2番目以降のレジスタンス（戻り売りの目安となる「遠い壁」）
+  const farResistance =
+    resistances[1]?.price ?? roundPrice(nearestResistance + Math.max(atr14, 1000));
+  const farSupport =
+    supports[1]?.price ?? roundPrice(nearestSupport - Math.max(atr14, 1000));
 
-  // --- Long scenario (上昇) ---
-  const entryLong = roundPrice(nearestSupport);
-  const slLongPrice = roundPrice(entryLong - atr14 * 1.5);
-  const slLongAmt = roundPrice(entryLong - slLongPrice);
-
-  const tp1LongPrice = resolveTP(entryLong, "up", keyLevels, atr14);
-  const tp1LongAmt = roundPrice(tp1LongPrice - entryLong);
-  const tp2LongPrice = resolveTP(tp1LongPrice, "up", keyLevels, atr14);
-  const tp2LongAmt = roundPrice(tp2LongPrice - entryLong);
-
-  const rrLong = slLongAmt > 0 ? (tp1LongAmt / slLongAmt).toFixed(1) : "N/A";
-
-  // --- Short scenario (下落) ---
-  const entryShort = roundPrice(nearestResistance);
-  const slShortPrice = roundPrice(entryShort + atr14 * 1.5);
-  const slShortAmt = roundPrice(slShortPrice - entryShort);
-
-  const tp1ShortPrice = resolveTP(entryShort, "down", keyLevels, atr14);
-  const tp1ShortAmt = roundPrice(entryShort - tp1ShortPrice);
-  const tp2ShortPrice = resolveTP(tp1ShortPrice, "down", keyLevels, atr14);
-  const tp2ShortAmt = roundPrice(entryShort - tp2ShortPrice);
-
-  const rrShort = slShortAmt > 0 ? (tp1ShortAmt / slShortAmt).toFixed(1) : "N/A";
-
-  const bullish: TradeScenario = {
-    trigger: `${formatPrice(entryLong)}ドル付近で4時間足陽線確定（下ヒゲ反発確認）`,
-    entry: `${formatPrice(entryLong)}ドル付近でロング`,
-    entryPrice: entryLong,
-    stopLoss: `${formatPrice(slLongPrice)}ドル割れ（ATR×1.5 = ${formatPrice(slLongAmt)}ドル幅）`,
-    stopLossPrice: slLongPrice,
-    stopLossAmount: slLongAmt,
-    takeProfit1: `${formatPrice(tp1LongPrice)}ドル（${formatPrice(tp1LongAmt)}ドル幅 = ATR×${(tp1LongAmt / atr14).toFixed(1)}倍）`,
-    takeProfit1Price: tp1LongPrice,
-    takeProfit1Amount: tp1LongAmt,
-    takeProfit2: `${formatPrice(tp2LongPrice)}ドル（${formatPrice(tp2LongAmt)}ドル幅 = ATR×${(tp2LongAmt / atr14).toFixed(1)}倍）`,
-    takeProfit2Price: tp2LongPrice,
-    takeProfit2Amount: tp2LongAmt,
-    rrRatio: `1:${rrLong}`,
+  const bullish = buildScenario({
+    direction: "long",
+    entryPrice: nearestSupport,
+    trigger: `${formatPrice(nearestSupport)}ドル付近で下ヒゲ＋4時間足陽線確定（反発の形を確認してから）`,
+    entryNote: `${formatPrice(nearestSupport)}ドル付近でロング`,
+    keyLevels,
+    atr14,
     notes: actionBridge,
-  };
+  });
 
-  const bearish: TradeScenario = {
-    trigger: `${formatPrice(entryShort)}ドル付近で4時間足上ヒゲ陰線確認後にショート`,
-    entry: `${formatPrice(entryShort)}ドル付近でショート`,
-    entryPrice: entryShort,
-    stopLoss: `${formatPrice(slShortPrice)}ドル上抜け（ATR×1.5 = ${formatPrice(slShortAmt)}ドル幅）`,
-    stopLossPrice: slShortPrice,
-    stopLossAmount: slShortAmt,
-    takeProfit1: `${formatPrice(tp1ShortPrice)}ドル（${formatPrice(tp1ShortAmt)}ドル幅 = ATR×${(tp1ShortAmt / atr14).toFixed(1)}倍）`,
-    takeProfit1Price: tp1ShortPrice,
-    takeProfit1Amount: tp1ShortAmt,
-    takeProfit2: `${formatPrice(tp2ShortPrice)}ドル（${formatPrice(tp2ShortAmt)}ドル幅 = ATR×${(tp2ShortAmt / atr14).toFixed(1)}倍）`,
-    takeProfit2Price: tp2ShortPrice,
-    takeProfit2Amount: tp2ShortAmt,
-    rrRatio: `1:${rrShort}`,
+  const bearish = buildScenario({
+    direction: "short",
+    entryPrice: nearestResistance,
+    trigger: `${formatPrice(nearestResistance)}ドル付近で上ヒゲ陰線確定後にショート`,
+    entryNote: `${formatPrice(nearestResistance)}ドル付近でショート`,
+    keyLevels,
+    atr14,
     notes: `基本目線は${trend === "bearish" ? "下" : trend === "bullish" ? "上" : "中立"}。高値切り下がりを確認してから入る。`,
-  };
+  });
 
-  return { bullish, bearish };
+  // 第3シナリオ：トレンド方向へのリテスト狙い（台本⑧の「戻り売り」パターン）
+  const pullback =
+    trend === "bullish"
+      ? buildScenario({
+          direction: "long",
+          entryPrice: farSupport,
+          trigger: `一度${formatPrice(nearestSupport)}ドルを割って深押しした後、${formatPrice(farSupport)}ドル付近で下ヒゲ陽線確定（押し目買いのリテスト）`,
+          entryNote: `${formatPrice(farSupport)}ドル付近まで引き付けてロング`,
+          keyLevels,
+          atr14,
+          notes: "深押し後の押し目買い。少し先の話だが、今のうちからラインを意識しておく。抜けた瞬間の飛びつきはNG、リテスト確認後に入る。",
+        })
+      : buildScenario({
+          direction: "short",
+          entryPrice: farResistance,
+          trigger: `${formatPrice(farResistance)}ドル付近まで反発した後、上ヒゲ陰線確定（戻り売りのリテスト）`,
+          entryNote: `${formatPrice(farResistance)}ドル付近まで引き付けてショート`,
+          keyLevels,
+          atr14,
+          notes: "反発後の戻り売り。少し先の話だが、今のうちからラインを意識しておく。長期トレンドで上から抑えつけられるポイント。",
+        });
+
+  return { bullish, bearish, pullback };
 }
 
 export function runTechnicalAnalysis(
@@ -273,6 +321,9 @@ export function runTechnicalAnalysis(
       chartApplication: conceptFourStep.chartApplication,
       benefit: conceptFourStep.benefit,
       entryBridge: conceptFourStep.entryBridge,
+      analogy: conceptFourStep.analogy,
+      ngAction: conceptFourStep.ngAction,
+      commentPrompt: conceptFourStep.commentPrompt,
     },
   };
 }

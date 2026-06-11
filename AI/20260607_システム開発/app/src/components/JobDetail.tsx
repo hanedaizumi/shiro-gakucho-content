@@ -79,10 +79,16 @@ export function JobDetail({ jobId }: { jobId: string }) {
       const data = await res.json().catch(() => ({}));
       throw new Error(data.error ?? `HTTP ${res.status}`);
     }
-    const data = await res.json();
+    const data = (await res.json()) as JobData;
     setLoadError(null);
     setJob(data);
-    return data as JobData;
+    // 生成完了後にポーリングで内容が届いた場合、エディタが空なら自動反映する
+    // （以前は初回ロード時のみセットしていたため、完了直後に空白表示になっていた）
+    setEditContent((current) => {
+      if (current) return current;
+      return data.report?.markdown ?? data.script?.markdown ?? "";
+    });
+    return data;
   }, [jobId]);
 
   useEffect(() => {

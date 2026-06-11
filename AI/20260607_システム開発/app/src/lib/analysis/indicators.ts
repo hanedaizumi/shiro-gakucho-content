@@ -126,8 +126,9 @@ export function describeCandlePattern(candles: Candle[], tfLabel: string): strin
   // 出来高
   const avgVolume =
     candles.slice(-10, -1).reduce((s, c) => s + c.volume, 0) / 9;
-  if (last.volume > avgVolume * 1.5) parts.push("出来高急増（${Math.round(last.volume / avgVolume * 10) / 10}倍）");
-  else if (last.volume < avgVolume * 0.5) parts.push("出来高低下（${Math.round(last.volume / avgVolume * 10) / 10}倍）");
+  const volRatio = Math.round((last.volume / avgVolume) * 10) / 10;
+  if (last.volume > avgVolume * 1.5) parts.push(`出来高急増（平均比${volRatio}倍）`);
+  else if (last.volume < avgVolume * 0.5) parts.push(`出来高低下（平均比${volRatio}倍）`);
 
   return `${tfLabel}: ${parts.join(" / ") || "通常のローソク足"}`;
 }

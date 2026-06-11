@@ -8,16 +8,13 @@ import {
 import type { CollectedData } from "@/lib/collectors";
 import { runTechnicalAnalysis } from "@/lib/analysis";
 import { generateCoinReportMarkdown } from "@/lib/llm/coin-report-generator";
-import { generateCoinScriptMarkdown } from "@/lib/llm/coin-script-generator";
 import { generateReport } from "@/lib/llm/report-generator";
-import { generateScript } from "@/lib/llm/script-generator";
-import { validateScript } from "@/lib/validators/script-validator";
 import {
   loadExternalContext,
-  getNextScriptNumber,
   syncScriptHistoryFromFiles,
 } from "@/lib/external-refs/loader";
-import { exportArtifacts, exportCoinReport } from "@/lib/export";
+import { buildPreviousScriptFromText } from "@/lib/external-refs/previous-script";
+import { exportCoinReport } from "@/lib/export";
 import { normalizePlanning, type PlanningContext } from "@/lib/planning/context";
 
 async function updateJob(
@@ -66,6 +63,8 @@ export async function runUnifiedPipeline(
     titleText?: string;
     storyHypothesis?: string;
     tradingBias?: "bullish" | "bearish" | "neutral";
+    /** フォームに貼り付けられた前回台本の本文（あればファイル検索より優先） */
+    previousScriptText?: string;
   }
 ) {
   try {
@@ -78,10 +77,6 @@ export async function runUnifiedPipeline(
       storyHypothesis: options.storyHypothesis,
       tradingBias: options.tradingBias ?? "neutral",
     });
-    const includeReport =
-      options.outputMode === "report" || options.outputMode === "report_and_script";
-    const includeScript =
-      options.outputMode === "script" || options.outputMode === "report_and_script";
     const effectiveMode: CoinResearchMode =
       needsTechnical(options.researchMode, options.outputMode, coin.symbol) &&
       options.researchMode === "fundamentals"
@@ -168,166 +163,66 @@ export async function runUnifiedPipeline(
       });
     }
 
+    // --- レポート生成（台本作成機能は廃止し、常にレポートのみ出力） ---
+    await updateJob(jobId, "report_generating", "レポートを生成中...");
+
+    // フォームに前回台本が貼り付けられていればそれを優先
+    const userPreviousScript = options.previousScriptText
+      ? buildPreviousScriptFromText(options.previousScriptText, options.scriptNumber)
+      : null;
+
     let reportMd = "";
     let reportJson: object = {};
 
-    if (includeReport || includeScript) {
-      await updateJob(jobId, "report_generating", "レポートを生成中...");
+    const includeFundamentals =
+      effectiveMode === "fundamentals" || effectiveMode === "both";
 
-      const includeFundamentals =
-        effectiveMode === "fundamentals" || effectiveMode === "both";
-
-      if (includeFundamentals) {
-        reportMd = await generateCoinReportMarkdown(collected, technical, planning);
-      } else if (coin.symbol === "BTC" && technical) {
-        const ctx = await loadExternalContext(options.scriptNumber);
-        const result = await generateReport(
-          collectedData,
-          technical,
-          ctx.previousScript
-        );
-        reportMd = result.markdown;
-        reportJson = result.json as object;
-      } else {
-        reportMd = await generateCoinReportMarkdown(collected, technical, planning);
-      }
-
-      if (coin.symbol === "BTC" && technical && includeScript) {
-        const ctx = await loadExternalContext(options.scriptNumber);
-        const result = await generateReport(
-          collectedData,
-          technical,
-          ctx.previousScript
-        );
-        reportJson = result.json as object;
-      } else if (!reportJson || Object.keys(reportJson).length === 0) {
-        reportJson = {
-          coin,
-          mode: effectiveMode,
-          planning,
-          technical,
-          newsCount: collected.news.length,
-          youtubeCount: collected.youtube.length,
-        };
-      }
-
-      await prisma.report.create({
-        data: { jobId, markdown: reportMd, json: reportJson },
-      });
+    if (coin.symbol === "BTC" && technical && !includeFundamentals) {
+      // BTCテクニカル専用レポート（台本構成①〜⑪対応）
+      const ctx = await loadExternalContext(options.scriptNumber);
+      const result = await generateReport(
+        collectedData,
+        technical,
+        userPreviousScript ?? ctx.previousScript
+      );
+      reportMd = result.markdown;
+      reportJson = result.json as object;
+    } else if (coin.symbol === "BTC" && technical && includeFundamentals) {
+      // ファンダ＋テクニカル：両方のレポートを結合
+      const ctx = await loadExternalContext(options.scriptNumber);
+      const technicalResult = await generateReport(
+        collectedData,
+        technical,
+        userPreviousScript ?? ctx.previousScript
+      );
+      const fundamentalsMd = await generateCoinReportMarkdown(collected, technical, planning);
+      reportMd = `${technicalResult.markdown}\n\n---\n\n${fundamentalsMd}`;
+      reportJson = technicalResult.json as object;
+    } else {
+      reportMd = await generateCoinReportMarkdown(collected, technical, planning);
+      reportJson = {
+        coin,
+        mode: effectiveMode,
+        planning,
+        technical,
+        newsCount: collected.news.length,
+        youtubeCount: collected.youtube.length,
+      };
     }
 
-    if (includeReport && !includeScript) {
-      await exportCoinReport(jobId, coin.symbol, reportMd);
-      await prisma.researchJob.update({
-        where: { id: jobId },
-        data: {
-          status: "report_ready",
-          stepMessage: "レポート完成",
-          completedAt: new Date().toISOString(),
-        },
-      });
-      return;
-    }
+    await prisma.report.create({
+      data: { jobId, markdown: reportMd, json: reportJson },
+    });
 
-    if (includeScript) {
-      await updateJob(jobId, "script_generating", "台本を生成中...");
-      const num =
-        coin.symbol === "BTC"
-          ? (options.scriptNumber ?? (await getNextScriptNumber()))
-          : null;
-
-      let scriptMd: string;
-      let episodeUsed: string;
-      let conceptUsed: string;
-      let validation;
-
-      if (coin.symbol === "BTC" && technical && num !== null) {
-        const btcScriptNumber = num;
-        const ctx = await loadExternalContext(btcScriptNumber);
-        const result = await generateScript(
-          reportJson as import("@/lib/types").ReportJson,
-          reportMd,
-          ctx,
-          btcScriptNumber
-        );
-        scriptMd = result.markdown;
-        episodeUsed = result.episodeUsed;
-        conceptUsed = result.conceptUsed;
-        validation = validateScript(
-          scriptMd,
-          reportJson as import("@/lib/types").ReportJson,
-          episodeUsed,
-          ctx.usedEpisodes
-        );
-
-        await prisma.researchJob.update({
-          where: { id: jobId },
-          data: { scriptNumber: btcScriptNumber },
-        });
-
-        const scriptFilename = `台本${btcScriptNumber}_${coin.symbol}分析_${new Date().toISOString().split("T")[0].replace(/-/g, "")}.md`;
-        await prisma.scriptHistory.upsert({
-          where: { scriptNumber: btcScriptNumber },
-          create: {
-            scriptNumber: btcScriptNumber,
-            filename: scriptFilename,
-            conceptUsed,
-            episodeUsed,
-            keyLevels: (reportJson as import("@/lib/types").ReportJson).technical
-              ?.keyLevels as object ?? {},
-            content: scriptMd.slice(0, 50000),
-            publishedAt: new Date().toISOString(),
-          },
-          update: {
-            filename: scriptFilename,
-            conceptUsed,
-            episodeUsed,
-            content: scriptMd.slice(0, 50000),
-            publishedAt: new Date().toISOString(),
-          },
-        });
-
-        await exportArtifacts(jobId, reportMd, scriptMd, btcScriptNumber);
-      } else {
-        const result = generateCoinScriptMarkdown({
-          coin,
-          reportMarkdown: reportMd,
-          technical,
-          researchMode: options.researchMode,
-          planning,
-        });
-        scriptMd = result.markdown;
-        episodeUsed = result.episodeUsed;
-        conceptUsed = result.conceptUsed;
-        validation = {
-          passed: true,
-          checks: [{ id: "coin_script", label: "コイン台本生成", passed: true }],
-          charCount: scriptMd.replace(/\s/g, "").length,
-          ngWords: [],
-        };
-        await exportCoinReport(jobId, coin.symbol, reportMd);
-      }
-
-      await prisma.script.create({
-        data: {
-          jobId,
-          markdown: scriptMd,
-          episodeUsed,
-          conceptUsed,
-          validation: validation as object,
-          charCount: validation.charCount,
-        },
-      });
-
-      await prisma.researchJob.update({
-        where: { id: jobId },
-        data: {
-          status: "script_ready",
-          stepMessage: "完了",
-          completedAt: new Date().toISOString(),
-        },
-      });
-    }
+    await exportCoinReport(jobId, coin.symbol, reportMd);
+    await prisma.researchJob.update({
+      where: { id: jobId },
+      data: {
+        status: "report_ready",
+        stepMessage: "レポート完成",
+        completedAt: new Date().toISOString(),
+      },
+    });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     await prisma.researchJob.update({

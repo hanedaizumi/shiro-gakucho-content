@@ -110,6 +110,49 @@ async function readArchiveScript(
   return null;
 }
 
+/**
+ * UIで貼り付けられた前回台本テキストから PreviousScriptContext を構築する。
+ * ファイル検索より優先して使用される。
+ */
+export function buildPreviousScriptFromText(
+  text: string,
+  currentScriptNumber?: number
+): PreviousScriptContext | null {
+  const content = text.trim();
+  if (content.length < 100) return null;
+
+  const prevNum = currentScriptNumber ? currentScriptNumber - 1 : 0;
+
+  return {
+    scriptNumber: prevNum,
+    filename: "（フォーム貼り付け）",
+    content,
+    predictionQuote: extractPredictionQuote(content) || extractMainClaim(content),
+    keyLevels: extractKeyLevels(content),
+    reversalCondition: extractReversalCondition(content),
+    conceptUsed: extractConcept(content),
+  };
+}
+
+/**
+ * 「前回の動画で〜」の引用が見つからない場合、
+ * 台本冒頭のフック（断言部分）を予測文として抽出する。
+ */
+function extractMainClaim(content: string): string {
+  const lines = content
+    .split("\n")
+    .map((l) => l.trim())
+    .filter((l) => l.length > 10 && !l.startsWith("#"));
+
+  // 冒頭3行から価格言及のある断言を探す
+  for (const line of lines.slice(0, 5)) {
+    if (/\d{2,3}[,.]?\d{0,3}\s*ドル/.test(line)) {
+      return line.slice(0, 150);
+    }
+  }
+  return lines[0]?.slice(0, 150) ?? "";
+}
+
 export async function loadPreviousScript(
   currentScriptNumber: number
 ): Promise<PreviousScriptContext | null> {

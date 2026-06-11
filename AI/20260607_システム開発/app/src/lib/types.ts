@@ -19,6 +19,8 @@ export interface KeyLevel {
   type: "support" | "resistance";
   reason: string;
   strength: number;
+  /** このライン付近（±1%）で反発・反落したスイングポイントの日付（歴史的検証用） */
+  touchDates?: string[];
 }
 
 export type MarketPhase =
@@ -78,6 +80,8 @@ export interface TechnicalAnalysis {
   scenarios: {
     bullish: TradeScenario;
     bearish: TradeScenario;
+    /** 第3シナリオ：トレンド方向へのリテスト狙い（戻り売り/押し目買い） */
+    pullback: TradeScenario;
   };
   conceptSuggestion: {
     name: string;
@@ -87,6 +91,12 @@ export interface TechnicalAnalysis {
     chartApplication: string;
     benefit: string;
     entryBridge: string;
+    /** 中学生でも分かる日常の例え */
+    analogy: string;
+    /** 視聴者がやりがちなNG行動 */
+    ngAction: string;
+    /** コメント誘導用の二択質問 */
+    commentPrompt: string;
   };
 }
 
