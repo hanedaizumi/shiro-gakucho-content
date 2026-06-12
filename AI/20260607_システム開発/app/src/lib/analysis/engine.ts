@@ -133,36 +133,51 @@ function buildScenarios(
     .filter((l) => l.type === "resistance" && l.price >= currentPrice)
     .sort((a, b) => a.price - b.price);
 
-  const nearestSupport = supports[0]?.price ?? roundPrice(currentPrice * 0.97);
-  const nearestResistance = resistances[0]?.price ?? roundPrice(currentPrice * 1.05);
-  // 2番目以降のライン（リテスト狙いの目安となる「遠い壁」）
-  const farResistance =
-    resistances[1]?.price ?? roundPrice(nearestResistance + Math.max(atr14, 1000));
-  const farSupport =
-    supports[1]?.price ?? roundPrice(nearestSupport - Math.max(atr14, 1000));
+  // デイトレ〜スイング想定：エントリーは現在価格から最低 ATR×1.0（約1日分の値動き）
+  // 離れたラインに置く。動画視聴が1〜2日遅れても対応できる距離を確保する。
+  const minDist = atr14;
+  const deepDist = atr14 * 2;
+
+  const entrySupport =
+    supports.find((l) => currentPrice - l.price >= minDist)?.price ??
+    roundPrice(currentPrice - minDist);
+  const entryResistance =
+    resistances.find((l) => l.price - currentPrice >= minDist)?.price ??
+    roundPrice(currentPrice + minDist);
+
+  // 第3シナリオ（リテスト狙い）は ATR×2.0（約2日分）以上離れたライン
+  const deepSupport =
+    supports.find((l) => currentPrice - l.price >= deepDist)?.price ??
+    roundPrice(currentPrice - deepDist);
+  const deepResistance =
+    resistances.find((l) => l.price - currentPrice >= deepDist)?.price ??
+    roundPrice(currentPrice + deepDist);
+
+  // 直近の攻防ライン（トレンド転換の確認用に注意文で使用）
+  const nearestResistance = resistances[0]?.price ?? roundPrice(currentPrice * 1.03);
 
   // バイアス指定があればそれを主方向に。中立なら日足トレンドに従う
   const mainDirection = tradingBias !== "neutral" ? tradingBias : trend;
 
   const bullishNotes =
     tradingBias === "bullish"
-      ? `メインシナリオ（バイアス：上昇優先）。${formatPrice(nearestSupport)}ドルで反発の形（下ヒゲ＋4時間足陽線確定）を確認してから入る。確認前の飛びつきロングはNG。${formatPrice(nearestResistance)}ドルを実体で上抜ければ反発本格化と判断。`
+      ? `メイン（上昇優先）。${formatPrice(entrySupport)}ドルまでの押しを待ち、反発の形を確認してから。飛びつきNG。`
       : tradingBias === "bearish"
-      ? `警戒用サブシナリオ。基本目線は下のため、${formatPrice(nearestSupport)}ドルでの反発が明確な場合のみ短期リバ取りに留める。`
+      ? `警戒用サブ。基本目線は下。反発が明確な場合のみ短期リバ取りに留める。`
       : actionBridge;
 
   const bearishNotes =
     tradingBias === "bearish"
-      ? `メインシナリオ（バイアス：下落優先）。${formatPrice(nearestResistance)}ドルへの戻りを引き付けてから、高値切り下がりを確認して入る。`
+      ? `メイン（下落優先）。${formatPrice(entryResistance)}ドルへの戻りを引き付け、高値切り下がりを確認して入る。`
       : tradingBias === "bullish"
-      ? `警戒用サブシナリオ。${formatPrice(nearestResistance)}ドルを上抜けできず明確に反落した場合のみ。基本は上昇シナリオを優先し、無理なショートは控える。`
+      ? `警戒用サブ。${formatPrice(nearestResistance)}ドルを上抜けできず反落した場合のみ。無理なショートは控える。`
       : `基本目線は${trend === "bearish" ? "下" : trend === "bullish" ? "上" : "中立"}。高値切り下がりを確認してから入る。`;
 
   const bullish = buildScenario({
     direction: "long",
-    entryPrice: nearestSupport,
-    trigger: `${formatPrice(nearestSupport)}ドル付近で下ヒゲ＋4時間足陽線確定（反発の形を確認してから）`,
-    entryNote: `${formatPrice(nearestSupport)}ドル付近でロング`,
+    entryPrice: entrySupport,
+    trigger: `${formatPrice(entrySupport)}ドルへの押しを待つ → 下ヒゲ＋4時間足陽線確定で反発確認`,
+    entryNote: `${formatPrice(entrySupport)}ドル付近でロング`,
     keyLevels,
     atr14,
     notes: bullishNotes,
@@ -170,34 +185,34 @@ function buildScenarios(
 
   const bearish = buildScenario({
     direction: "short",
-    entryPrice: nearestResistance,
-    trigger: `${formatPrice(nearestResistance)}ドル付近で上ヒゲ陰線確定後にショート`,
-    entryNote: `${formatPrice(nearestResistance)}ドル付近でショート`,
+    entryPrice: entryResistance,
+    trigger: `${formatPrice(entryResistance)}ドルへの戻りを待つ → 上ヒゲ陰線確定で反落確認`,
+    entryNote: `${formatPrice(entryResistance)}ドル付近でショート`,
     keyLevels,
     atr14,
     notes: bearishNotes,
   });
 
-  // 第3シナリオ：主方向（バイアス優先）へのリテスト狙い
+  // 第3シナリオ：主方向（バイアス優先）へのリテスト狙い（さらに深い位置）
   const pullback =
     mainDirection === "bullish"
       ? buildScenario({
           direction: "long",
-          entryPrice: farSupport,
-          trigger: `一度${formatPrice(nearestSupport)}ドルを割って深押しした後、${formatPrice(farSupport)}ドル付近で下ヒゲ陽線確定（押し目買いのリテスト）`,
-          entryNote: `${formatPrice(farSupport)}ドル付近まで引き付けてロング`,
+          entryPrice: deepSupport,
+          trigger: `${formatPrice(entrySupport)}ドルを割って深押し → ${formatPrice(deepSupport)}ドルで下ヒゲ陽線確定`,
+          entryNote: `${formatPrice(deepSupport)}ドルまで引き付けてロング`,
           keyLevels,
           atr14,
-          notes: "深押し後の押し目買い。最初の反発を取り逃しても、ここまで引き付ければより有利な価格で乗れる。抜けた瞬間の飛びつきはNG、リテスト確認後に入る。",
+          notes: "深押し時の押し目買い。より有利な価格で乗れる。リテスト確認後に入る。",
         })
       : buildScenario({
           direction: "short",
-          entryPrice: farResistance,
-          trigger: `${formatPrice(farResistance)}ドル付近まで反発した後、上ヒゲ陰線確定（戻り売りのリテスト）`,
-          entryNote: `${formatPrice(farResistance)}ドル付近まで引き付けてショート`,
+          entryPrice: deepResistance,
+          trigger: `${formatPrice(deepResistance)}ドルまで反発 → 上ヒゲ陰線確定で戻り売り`,
+          entryNote: `${formatPrice(deepResistance)}ドルまで引き付けてショート`,
           keyLevels,
           atr14,
-          notes: "反発後の戻り売り。少し先の話だが、今のうちからラインを意識しておく。長期トレンドで上から抑えつけられるポイント。",
+          notes: "深い戻りの売り場。長期トレンドで上から抑えられるポイント。",
         });
 
   return { bullish, bearish, pullback };

@@ -3,7 +3,6 @@ import type { ReportJson, TechnicalAnalysis, KeyLevel, TradeScenario } from "@/l
 import { formatPrice } from "@/lib/analysis";
 import {
   buildPreviousHitIntro,
-  buildPreviousPredictionReport,
   type PreviousScriptContext,
 } from "@/lib/external-refs/previous-script";
 
@@ -302,11 +301,13 @@ function build30sSummary(t: TechnicalAnalysis, conceptName: string): string {
 
   let mainLine: string;
   if (t.tradingBias === "bullish") {
-    mainLine = `今のビットコインは${formatPrice(t.currentPrice)}ドル付近。${t.trend === "bearish" ? "日足はまだ下落トレンドですが、" : ""}${t.rsiDaily < 35 ? `RSI${t.rsiDaily.toFixed(0)}の売られすぎ` : "条件の揃い方"}${sup ? `と${formatPrice(sup.price)}ドルのサポート` : ""}から、今週の基本戦略は「反発の形を確認してロング」です。
-${res ? `${formatPrice(res.price)}ドルを実体で上抜ければ反発本格化。` : ""}逆に${sup ? `${formatPrice(sup.price)}ドル割れなら一旦撤退` : "サポート割れなら一旦撤退"}。ルールはシンプルです。`;
+    const entry = t.scenarios.bullish.entryPrice;
+    mainLine = `今のビットコインは${formatPrice(t.currentPrice)}ドル付近。${t.trend === "bearish" ? "日足はまだ下落トレンドですが、" : ""}${t.rsiDaily < 35 ? `RSI${t.rsiDaily.toFixed(0)}の売られすぎ` : "条件の揃い方"}から、今週の基本戦略は「${formatPrice(entry)}ドルへの押しを待って、反発の形を確認してロング」です。
+${res ? `${formatPrice(res.price)}ドルを実体で上抜ければ反発本格化。` : ""}逆に${formatPrice(t.scenarios.bullish.stopLossPrice)}ドル割れなら一旦撤退。ルールはシンプルです。`;
   } else if (t.tradingBias === "bearish") {
+    const entry = t.scenarios.bearish.entryPrice;
     mainLine = `今のビットコインは${formatPrice(t.currentPrice)}ドル付近で下落優勢。
-今週の基本戦略は${res ? `「${formatPrice(res.price)}ドルへの戻りを待って売る」` : "「戻り売り」"}です。${t.rsiDaily < 35 ? `ただRSI${t.rsiDaily.toFixed(0)}の売られすぎで短期反発は入りやすいので、飛びつきショートはNG。` : ""}`;
+今週の基本戦略は「${formatPrice(entry)}ドルへの戻りを待って売る」です。${t.rsiDaily < 35 ? `ただRSI${t.rsiDaily.toFixed(0)}の売られすぎで短期反発は入りやすいので、飛びつきショートはNG。` : ""}`;
   } else {
     const trendWord = t.trend === "bearish" ? "下落優勢" : t.trend === "bullish" ? "上昇優勢" : "レンジ";
     mainLine = `今のビットコインは${formatPrice(t.currentPrice)}ドル付近で${trendWord}。
@@ -338,16 +339,26 @@ function buildNextTeasers(t: TechnicalAnalysis, conceptName: string): string[] {
   return teasers.slice(0, 3);
 }
 
-function buildScenarioTable(s: TradeScenario): string {
-  return `| 項目 | 内容 |
-|------|------|
-| トリガー | ${s.trigger} |
-| エントリー | ${s.entry} |
-| 損切り | ${s.stopLoss} |
-| 利確① | ${s.takeProfit1} |
-| 利確② | ${s.takeProfit2} |
-| RR比 | ${s.rrRatio} |
-| 注意 | ${s.notes} |`;
+/** 3シナリオを1つの比較表にまとめる（横持ちで冗長さを削減） */
+function buildScenarioComparisonTable(
+  scenarios: Array<{ label: string; s: TradeScenario }>
+): string {
+  const header = `| 項目 | ${scenarios.map((x) => x.label).join(" | ")} |`;
+  const divider = `|------|${scenarios.map(() => "------").join("|")}|`;
+  const row = (name: string, pick: (s: TradeScenario) => string) =>
+    `| ${name} | ${scenarios.map((x) => pick(x.s)).join(" | ")} |`;
+
+  return [
+    header,
+    divider,
+    row("エントリー", (s) => s.entry),
+    row("トリガー", (s) => s.trigger),
+    row("損切り", (s) => `${formatPrice(s.stopLossPrice)}ドル（${formatPrice(s.stopLossAmount)}幅）`),
+    row("利確①", (s) => `${formatPrice(s.takeProfit1Price)}ドル（+${formatPrice(s.takeProfit1Amount)}）`),
+    row("利確②", (s) => `${formatPrice(s.takeProfit2Price)}ドル（+${formatPrice(s.takeProfit2Amount)}）`),
+    row("RR比", (s) => s.rrRatio),
+    row("注意", (s) => s.notes),
+  ].join("\n");
 }
 
 function buildReportMarkdown(
@@ -365,13 +376,6 @@ function buildReportMarkdown(
   const youtubeBlock = buildYouTubeContextBlock(json);
   const wc = json.weeklyConcept as Record<string, string>;
 
-  const prevSection = buildPreviousPredictionReport(
-    previousScript,
-    t.currentPrice,
-    String(ca.trend),
-    String(ca.trendReversalCondition)
-  );
-
   const introSection = previousScript
     ? buildPreviousHitIntro(previousScript, t.currentPrice, t.trend)
     : "（前回台本の入力なし。初回として「今日からこのチャンネルでは毎回ラインとシナリオを共有していきます」の導入を推奨）";
@@ -387,8 +391,8 @@ function buildReportMarkdown(
   const trendDailyLabel =
     t.trend === "bullish" ? "上昇" : t.trend === "bearish" ? "下落" : "レンジ";
 
-  const supportLevels = levels.filter((l) => l.type === "support").sort((a, b) => b.price - a.price).slice(0, 4);
-  const resistanceLevels = levels.filter((l) => l.type === "resistance").sort((a, b) => a.price - b.price).slice(0, 4);
+  const supportLevels = levels.filter((l) => l.type === "support").sort((a, b) => b.price - a.price).slice(0, 3);
+  const resistanceLevels = levels.filter((l) => l.type === "resistance").sort((a, b) => a.price - b.price).slice(0, 3);
 
   const allLevelsTable = [
     ...[...resistanceLevels].reverse().map(formatLevelRow),
@@ -410,153 +414,146 @@ function buildReportMarkdown(
   const mainDirection = t.tradingBias !== "neutral" ? t.tradingBias : t.trend;
   const pullbackLabel = mainDirection === "bullish" ? "押し目買い（深押しリテスト狙い）" : "戻り売り（リテスト狙い）";
 
-  return `# BTCテクニカルレポート ${date}
-> このレポートは台本①〜⑪セクションのインプット素材です。
+  const MAX_CHARS = 5000;
 
----
+  const mtfVerdict =
+    t.trend === t.trend4h && t.trend4h === t.trend1h
+      ? "3本とも同方向→方向感が明確"
+      : t.trend === t.trend4h
+      ? "日足・4Hが一致、1Hは揺れ→エントリー待ち"
+      : "時間足間で乖離→トリガー確認を慎重に";
+
+  const candleLines = [
+    `- **日足**: ${t.candleCharacteristics}`,
+    `- **4H**: ${t.candleCharacteristics4h} ｜ **1H**: ${t.candleCharacteristics1h}`,
+    ...(t.volumeSpike ? ["- **出来高**: 急増あり（平均比+80%以上）─ 大口の動きが入った可能性"] : []),
+  ].join("\n");
+
+  // セクションを優先度つきで組み立てる。
+  // drop の数値が大きいものから順に削り、全体を MAX_CHARS 以内に収める（drop=0 は必須）
+  const sections: Array<{ drop: number; text: string }> = [
+    {
+      drop: 0,
+      text: `# BTCテクニカルレポート ${date}
 
 ## 【基本情報】
-- **現在値**: ${formatPrice(t.currentPrice)}ドル
-- **24h変化**: ${t.change24h >= 0 ? "+" : ""}${t.change24h.toFixed(2)}%
-- **7d変化**: ${t.change7d >= 0 ? "+" : ""}${t.change7d.toFixed(2)}%
-- **市場フェーズ**: ${(json.marketPhase as Record<string, string>)?.label ?? "未判定"}
-- **ATR(14日足)**: ${formatPrice(t.atr14)}ドル（利確幅の基準値）
-- **バイアス設定**: ${biasLabel}（フック・結論・シナリオの主軸に反映済み）
-${storyHypothesis ? `- **台本仮説（入力）**: ${storyHypothesis}` : ""}
-${json.priceVolatility.dominance ? `- **BTCドミナンス**: ${(json.priceVolatility.dominance as number).toFixed(1)}%` : ""}
+- **現在値**: ${formatPrice(t.currentPrice)}ドル（24h ${t.change24h >= 0 ? "+" : ""}${t.change24h.toFixed(2)}% / 7d ${t.change7d >= 0 ? "+" : ""}${t.change7d.toFixed(2)}%）
+- **市場フェーズ**: ${(json.marketPhase as Record<string, string>)?.label ?? "未判定"} ｜ **ATR(14)**: ${formatPrice(t.atr14)}ドル${json.priceVolatility.dominance ? ` ｜ **ドミナンス**: ${(json.priceVolatility.dominance as number).toFixed(1)}%` : ""}
+- **バイアス設定**: ${biasLabel}（フック・結論・シナリオに反映済み）${storyHypothesis ? `\n- **台本仮説（入力）**: ${storyHypothesis}` : ""}`,
+    },
+    {
+      drop: 0,
+      text: `## ① 冒頭フック候補
+${hooks.map((h, i) => `**案${i + 1}**: ${h}`).join("\n")}`,
+    },
+    {
+      drop: 0,
+      text: `## ①-2 前回振り返りパート（そのまま読める文章）
+${introSection}`,
+    },
+    {
+      drop: 0,
+      text: `## ④ BTCの現在地（日足ベース）
 
----
+**【結論】** ${conclusion}
 
-## ① 冒頭フック候補（3案・トーン別）
-${hooks.map((h, i) => `**案${i + 1}**\n${h}`).join("\n\n")}
-
----
-
-## ①-2 前回振り返りパート（導入用・そのまま読める文章）
-${introSection}
-
----
-
-## 【前回予測との照合（データ詳細）】
-${prevSection}
-
----
-
-## ④ BTCの現在地（日足ベース）
-
-### 【結論ファースト】
-${conclusion}
-
-### 【指標】
-**▼ 固定ベース指標（毎回確認）**
+**【指標】**
 | 指標 | 数値 | 判定 |
 |------|------|------|
-| 現在値 | ${formatPrice(t.currentPrice)}ドル | — |
-| MA200（日足） | ${formatPrice(t.ma200)}ドル | 乖離率 ${t.ma200Divergence >= 0 ? "+" : ""}${t.ma200Divergence.toFixed(1)}% |
-| RSI（日足） | ${t.rsiDaily.toFixed(1)} | ${t.rsiDaily > 70 ? "買われすぎ警戒" : t.rsiDaily < 30 ? "売られすぎ（反発注視）" : t.rsiDaily > 55 ? "強め" : t.rsiDaily < 45 ? "弱め" : "中立"} |
-| RSI（4H） | ${t.rsi4h.toFixed(1)} | ${t.rsi4h > 60 ? "短期過熱注意" : t.rsi4h < 40 ? "短期売られすぎ" : "中立"} |
-| RSI（1H） | ${t.rsi1h.toFixed(1)} | ${t.rsi1h > 60 ? "1H過熱" : t.rsi1h < 40 ? "1H売られすぎ" : "中立"} |
-| 7日変化 | ${t.change7d >= 0 ? "+" : ""}${t.change7d.toFixed(2)}% | — |
+| MA200乖離率 | ${formatPrice(t.ma200)}ドル | ${t.ma200Divergence >= 0 ? "+" : ""}${t.ma200Divergence.toFixed(1)}% |
+| RSI 日足 | ${t.rsiDaily.toFixed(1)} | ${t.rsiDaily > 70 ? "買われすぎ警戒" : t.rsiDaily < 30 ? "売られすぎ（反発注視）" : t.rsiDaily > 55 ? "強め" : t.rsiDaily < 45 ? "弱め" : "中立"} |
+| RSI 4H / 1H | ${t.rsi4h.toFixed(1)} / ${t.rsi1h.toFixed(1)} | ${t.rsi4h > 60 || t.rsi1h > 60 ? "短期過熱注意" : t.rsi4h < 40 || t.rsi1h < 40 ? "短期売られすぎ" : "中立"} |
 
-**▼ フェーズ別注目指標**
-${t.phaseReasons.slice(0, 3).map((r) => `- ${r}`).join("\n")}
+**【ローソク足】**
+${candleLines}
 
-### 【ローソク足】
-- **日足直近**: ${t.candleCharacteristics}
-- **4H足**: ${t.candleCharacteristics4h}
-- **1H足**: ${t.candleCharacteristics1h}
-- **出来高**: ${t.volumeSpike ? "急増あり（平均比+80%以上）─ 大口の動きが入った可能性" : "通常水準（特筆なし）"}
-
-### 【ライン（水平線・斜め線）】
-**▼ 主要ライン（上から下・歴史的検証つき）**
-| 価格 | 種別 | 根拠 | 過去の反応実績 |
-|------|------|------|----------------|
+**【主要ライン（上から下・反応実績つき）】**
+| 価格 | 種別 | 根拠 | 反応実績 |
+|------|------|------|----------|
 ${allLevelsTable}
 
-**▼ マルチタイムフレーム整合**
-| 時間足 | トレンド | 判定 |
-|--------|----------|------|
-| 日足 | ${trendDailyLabel} | ベース方向 |
-| 4時間足 | ${trend4hLabel} | エントリーゾーン |
-| 1時間足 | ${trend1hLabel} | トリガー確認用 |
+**【時間足整合】** 日足=${trendDailyLabel} / 4H=${trend4hLabel} / 1H=${trend1hLabel} → ${mtfVerdict}
 
-**▼ 総合判断**: 3本の時間足が${
-    t.trend === t.trend4h && t.trend4h === t.trend1h
-      ? "すべて同方向→方向感が明確"
-      : t.trend === t.trend4h
-      ? "日足・4Hが一致、1Hは揺れ→エントリー待ちの局面"
-      : "時間足間で乖離→慎重にトリガー確認が必要"
-  }
+**【逆方向の可能性（両論併記用）】** ${counter.direction === "下落" ? "反発" : "下落"}側の根拠：
+${counter.items.length > 0 ? counter.items.map((c, i) => `${i + 1}. ${c}`).join("\n") : "- 現時点で強い根拠は限定的"}
 
-### 【両論併記：逆方向の可能性（台本の「でもまだ100%とは言えない」パート用）】
-基本目線と逆の「${counter.direction === "下落" ? "反発" : "下落"}」もあり得る理由：
-${counter.items.length > 0 ? counter.items.map((c, i) => `${i + 1}. ${c}`).join("\n") : "- 現時点で逆方向の強い根拠は限定的"}
+**【トレンド転換条件】** ${t.trendReversalCondition}`,
+    },
+    {
+      drop: 0,
+      text: `## ⑤ 今週の重要ポイント：${wc.name}
+> 選定理由: ${wc.reason} ｜ 過去テーマ（${["移動平均線", "逆三尊", "リテスト", "VWAP", ...excludedConceptTopics].filter((v, i, a) => a.indexOf(v) === i).slice(0, 6).join("・")}）は除外済み
 
-**▼ トレンド転換条件**
-${t.trendReversalCondition}
-${youtubeBlock}
-
----
-
-## ⑤ 今週の重要ポイント：${wc.name}
-> **選定理由**: ${wc.reason}
-> **重複チェック**: 過去に取り上げたテーマ（${["移動平均線", "逆三尊", "リテスト", "VWAP", ...excludedConceptTopics].filter((v, i, a) => a.indexOf(v) === i).join("・")}）は除外して選定済み
-
-**1. 簡単に定義（10秒で「これは〜のことです」）**
+**1. 定義（10秒）**
 ${wc.definition ?? wc.reason}
 
-**1-2. 日常の例え（中学生でも分かる翻訳）**
+**2. 日常の例え**
 ${wc.analogy ?? ""}
 
-**2. 今のBTCチャートでの具体的な見方・使い方**
+**3. 今のBTCチャートでの使い方**
 ${wc.chartApplication ?? `現在価格${formatPrice(t.currentPrice)}ドルで確認できる形状に注目します。`}
 
-**3. これが分かると何が良いか？**
+**4. 分かると何が良いか？＋NG行動**
 ${wc.benefit ?? "エントリー根拠の精度が上がります。"}
+NG: ${wc.ngAction ?? ""}
 
-**3-2. やりがちなNG行動（注意喚起パート用）**
-${wc.ngAction ?? ""}
+**5. エントリー判断への繋ぎ**
+${wc.entryBridge ?? t.trendReversalCondition}`,
+    },
+    {
+      drop: 0,
+      text: `## ⑥ コメント誘導（二択）
+${wc.commentPrompt ?? "今日の相場、上昇派ですか？下落派ですか？コメントで教えてください。"}`,
+    },
+    {
+      drop: 0,
+      text: `## ⑦ シナリオ別アクションプラン
+> バイアス: ${biasLabel} ｜ エントリーは現在値からATR×1.0（約1日分）以上離したライン。1〜2日視聴が遅れても対応可能
 
-**4. エントリー判断への繋ぎ**
-${wc.entryBridge ?? t.trendReversalCondition}
+${buildScenarioComparisonTable([
+        { label: mainLabel, s: mainScenario },
+        { label: subLabel, s: subScenario },
+        { label: `第3: ${pullbackLabel}`, s: pullbackScenario },
+      ])}`,
+    },
+    {
+      drop: 0,
+      text: `## ⑨ 30秒まとめ（そのまま読める文章案）
+${summary30s}`,
+    },
+    {
+      drop: 1,
+      text: `## ⑪ 次回予告ネタ候補
+${teasers.slice(0, 2).map((tz, i) => `${i + 1}. ${tz}`).join("\n")}`,
+    },
+    ...(youtubeBlock.trim()
+      ? [{ drop: 2, text: youtubeBlock.trim() }]
+      : []),
+    ...(json.externalSummary.news && (json.externalSummary.news as unknown[]).length > 0
+      ? [
+          {
+            drop: 3,
+            text: `## 【参考ニュース】
+${(json.externalSummary.news as Array<{ title: string }>).slice(0, 3).map((n) => `- ${n.title}`).join("\n")}`,
+          },
+        ]
+      : []),
+  ];
 
----
+  const join = (parts: Array<{ text: string }>) =>
+    parts.map((p) => p.text).join("\n\n---\n\n");
 
-## ⑥ コメント誘導（二択質問・そのまま使える）
-${wc.commentPrompt ?? "今日の相場、上昇派ですか？下落派ですか？コメントで教えてください。"}
+  let parts = [...sections];
+  // 優先度の低いセクションから削って文字数上限に収める
+  while (join(parts).length > MAX_CHARS) {
+    const dropTarget = [...parts]
+      .filter((p) => p.drop > 0)
+      .sort((a, b) => b.drop - a.drop)[0];
+    if (!dropTarget) break;
+    parts = parts.filter((p) => p !== dropTarget);
+  }
 
----
-
-## ⑦ シナリオ別アクションプラン
-
-> **バイアス: ${biasLabel}** ｜ ATR(14): ${formatPrice(t.atr14)}ドル（利確幅の基準）｜ 損切りはラインの外側に設置
-
-### 【${mainLabel} シナリオ】
-${buildScenarioTable(mainScenario)}
-
-### 【${subLabel} シナリオ】
-${buildScenarioTable(subScenario)}
-
-### 【第3シナリオ：${pullbackLabel}】
-${buildScenarioTable(pullbackScenario)}
-
----
-
-## ⑨ 30秒まとめ（そのまま読める文章案）
-${summary30s}
-
----
-
-## ⑪ 次回予告ネタ候補
-${teasers.map((tz, i) => `${i + 1}. ${tz}`).join("\n")}
-
----
-
-## 【補足データ】
-${json.externalSummary.news && (json.externalSummary.news as unknown[]).length > 0
-  ? `### ファンダメンタルズ（参考ニュース）\n${(json.externalSummary.news as Array<{ title: string }>).slice(0, 5).map((n) => `- ${n.title}`).join("\n")}`
-  : ""}
-`;
+  return join(parts);
 }
 
 export async function generateReport(
