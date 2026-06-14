@@ -26,6 +26,7 @@ export interface RankedNewsItem {
   /** 後方互換用：LLM貢献度スコアを正規化した値 */
   planningScore: number;
   llmReason?: string;
+  llmSummary?: string;
 }
 
 /**
@@ -89,11 +90,13 @@ export async function rankNewsForScript(
       let impactScore: number;
       let relevanceScore: number;
       let llmReason: string | undefined;
+      let llmSummary: string | undefined;
 
       if (llm) {
         impactScore = llm.impactScore;
         relevanceScore = llm.relevanceScore;
         llmReason = llm.reason;
+        llmSummary = llm.summary;
       } else {
         // LLMスコアなし（足切り対象）：キーワードスコアでフォールバック
         const body = `${item.title} ${item.summary}`;
@@ -115,6 +118,7 @@ export async function rankNewsForScript(
         relevanceScore,
         planningScore: Math.round(relevanceScore / 10),
         llmReason,
+        llmSummary,
       };
     })
     .sort((a, b) => {

@@ -25,6 +25,8 @@ export interface YouTubeVideoAnalysis {
   hookAnalysis?: string;
   structureAnalysis?: string[];
   differentiationMemo?: string[];
+  contentOverview?: string;
+  whyPerformingWell?: string;
 }
 
 const BULLISH = [
@@ -36,8 +38,35 @@ const BEARISH = [
 
 const HOOK_WORDS = [
   "警告", "WARNING", "衝撃", "SHOCK", "暴露", "EXPOSED", "売却", "SELLS", "爆上げ", "MAJOR",
-  "知らない", "99%", "緊急", "URGENT", "deadline", "法案", "ETF",
+  "知らない", "99%", "緊急", "URGENT", "deadline", "法案", "ETF", "億", "億確定", "真実",
 ];
+
+const PROMO_PATTERNS = [
+  /line/i, /lin\.ee/i, /discord\.gg/i, /友達追加/, /特典希望/, /チャンネル登録/,
+  /公式\s*line/i, /公式\s*x/i, /twitter\.com/i, /youtube\.com\/channel/i,
+  /動画限定特典/, /友達追加▼/, /app\.lineproent/, /===/, /^━+$/,
+  /^[❶❷❸❹❺]/, /▼仮想通貨で稼ぐ/, /永久無料/, /プレゼント/,
+];
+
+const CONTENT_KEYWORDS = [
+  "xrp", "リップル", "ripple", "etf", "sec", "法案", "供給", "エスクロー", "odl", "送金",
+  "価格", "予想", "シナリオ", "保有量", "億", "裁判", "規制", "ai", "銀行", "決済",
+  "support", "resistance", "bill", "escrow", "supply", "inflow", "clarity",
+];
+
+function isPromoLine(line: string): boolean {
+  const trimmed = line.trim();
+  if (trimmed.length < 8) return true;
+  return PROMO_PATTERNS.some((p) => p.test(trimmed));
+}
+
+function cleanContentText(text: string): string {
+  return text
+    .split(/\n/)
+    .map((l) => l.trim())
+    .filter((l) => l.length > 0 && !isPromoLine(l))
+    .join("\n");
+}
 
 function extractPrices(text: string): number[] {
   const prices = new Set<number>();
@@ -70,15 +99,17 @@ function detectSentiment(text: string): YouTubeVideoAnalysis["sentiment"] {
 }
 
 function extractKeyPoints(text: string): string[] {
-  const sentences = text
+  const cleaned = cleanContentText(text);
+  const sentences = cleaned
     .split(/[。．\n.!?]/)
     .map((s) => s.trim())
-    .filter((s) => s.length > 15);
+    .filter((s) => s.length > 20 && !isPromoLine(s));
 
   const keywords = [
     "サポート", "レジスタンス", "エントリー", "損切り", "利確", "トレンド",
     "ETF", "法案", "売却", "流入", "ODL", "送金", "マーケットメイカー",
     "support", "resistance", "entry", "stop", "target", "bill", "SEC",
+    "XRP", "リップル", "保有量", "億", "シナリオ", "供給", "エスクロー",
   ];
 
   const scored = sentences
@@ -90,6 +121,138 @@ function extractKeyPoints(text: string): string[] {
     .sort((a, b) => b.score - a.score);
 
   return scored.slice(0, 6).map((x) => x.s.slice(0, 150));
+}
+
+function inferTopicFromTitle(title: string): string {
+  const t = title.toLowerCase();
+  if (/1000\s*xrp|1000枚|30万円|20万円|億/.test(t)) {
+    return "XRPの保有量・投資額と将来の資産増シナリオを解説する動画";
+  }
+  if (/上がらない|下落|売却|警告|deadline/.test(t)) {
+    return "XRPが上がらない・下落する理由とリスクを解説する動画";
+  }
+  if (/爆上げ|億確定|rich|supply shock|etf/.test(t)) {
+    return "XRPの上昇シナリオ・爆上げ条件を提示する動画";
+  }
+  if (/clarity|法案|sec|regulation|供給/.test(t)) {
+    return "規制・法案・供給量がXRPに与える影響を解説する動画";
+  }
+  if (/ceo|ガーリングハウス|garlinghouse|暴露/.test(t)) {
+    return "リップルCEOの発言や業界動向を軸にした解説動画";
+  }
+  return "XRP（リップル）の最新動向・投資判断を解説する動画";
+}
+
+function buildContentOverview(
+  video: YouTubeVideo,
+  cleanedContent: string,
+  keyPoints: string[],
+  contentSource: YouTubeVideoAnalysis["contentSource"]
+): string {
+  if (keyPoints.length >= 2) {
+    const bullets = keyPoints.slice(0, 3).join("。");
+    return `${inferTopicFromTitle(video.title)}。主な論点：${bullets}。`;
+  }
+
+  const sentences = cleanedContent
+    .split(/[。．\n.!?]/)
+    .map((s) => s.trim())
+    .filter((s) => s.length > 30 && !isPromoLine(s))
+    .filter((s) =>
+      CONTENT_KEYWORDS.some((k) => s.toLowerCase().includes(k.toLowerCase()))
+    )
+    .slice(0, 3);
+
+  if (sentences.length) {
+    return `${inferTopicFromTitle(video.title)}。${sentences.join("。")}。`;
+  }
+
+  if (contentSource === "title_only") {
+    return `${inferTopicFromTitle(video.title)}。字幕・概要欄が取得できなかったため、タイトルから推定。`;
+  }
+
+  return `${inferTopicFromTitle(video.title)}。概要欄・字幕から具体的な論点の抽出が限定的。`;
+}
+
+function formatCountShort(n?: number): string {
+  if (!n) return "不明";
+  if (n >= 10000) return `${(n / 10000).toFixed(1)}万`;
+  if (n >= 1000) return `${(n / 1000).toFixed(1)}千`;
+  return String(n);
+}
+
+function buildWhyPerformingWell(
+  video: YouTubeVideo,
+  content: string,
+  sentiment: YouTubeVideoAnalysis["sentiment"],
+  planning?: PlanningContext
+): string {
+  const reasons: string[] = [];
+  const title = video.title;
+  const titleLower = title.toLowerCase();
+
+  if (video.spreadRate && video.spreadRate >= 2) {
+    const subs = formatCountShort(video.subscriberCount);
+    const views = formatCountShort(video.viewCount);
+    if (video.spreadRate >= 5) {
+      reasons.push(
+        `登録者${subs}人に対して再生${views}回（拡散率${video.spreadRate.toFixed(1)}倍）。チャンネル規模を大きく超えるリーチ＝「テーマの刺さり方」がチャンネル力より強い`
+      );
+    } else {
+      reasons.push(
+        `拡散率${video.spreadRate.toFixed(1)}倍（登録者${subs}人→再生${views}回）で、登録者数の2倍超を達成`
+      );
+    }
+  }
+
+  const hooks: string[] = [];
+  if (/億|億確定|rich|お金持ち|1000\s*xrp|1000枚/.test(titleLower)) {
+    hooks.push("具体的な保有量・金額（1000XRP・20万円等）で視聴者が自分事化しやすい");
+  }
+  if (/緊急|urgent|警告|warning|shock|衝撃/.test(titleLower)) {
+    hooks.push("「緊急」「警告」フレームで今すぐ見る動機を作っている");
+  }
+  if (/暴露|真実|裏シナリオ|exposed|secret/.test(titleLower)) {
+    hooks.push("「暴露」「裏シナリオ」で情報の希少性・特別感を演出");
+  }
+  if (/上がらない|下落|売却|deadline/.test(titleLower)) {
+    hooks.push("XRPホルダーの「上がらない不満・不安」に直撃するタイトル設計");
+  }
+  if (/ゆっくり/.test(title)) {
+    hooks.push("ゆっくり解説形式で初心者でも見られる入口設計");
+  }
+  if (hooks.length) reasons.push(hooks.join("／"));
+
+  if (sentiment === "bullish") {
+    reasons.push("上昇・資産増のトーンが、XRPコミュニティの期待心理（爆上げ待ち）に合致");
+  } else if (sentiment === "bearish") {
+    reasons.push("下落・リスク警告のトーンが、不安を抱えるホルダーの関心を引く");
+  }
+
+  if (/(etf|法案|sec|ai|供給|エスクロー|clarity)/i.test(`${title} ${content}`)) {
+    reasons.push("ETF・規制・供給・AIなど「今まさに話題」のキーワードを含み、検索流入を取りやすい");
+  }
+
+  if (planning) {
+    const planningKw = extractPlanningKeywords(planning);
+    const hits = planningKw.filter((k) =>
+      `${title} ${content}`.toLowerCase().includes(k.toLowerCase())
+    );
+    if (hits.length >= 2) {
+      reasons.push(`自社企画キーワード（${hits.slice(0, 3).join("・")}）とテーマが重なり、同じ視聴者層にリーチできている`);
+    }
+  }
+
+  if (
+    video.subscriberCount &&
+    video.subscriberCount < 20000 &&
+    video.spreadRate &&
+    video.spreadRate >= 3
+  ) {
+    reasons.push("小規模チャンネルでも伸びている＝企画テーマの需要が証明されている典型例");
+  }
+
+  return reasons.slice(0, 4).map((r, i) => `${i + 1}. ${r}`).join("\n");
 }
 
 function buildHookAnalysis(
@@ -106,27 +269,21 @@ function buildHookAnalysis(
 
   const parts: string[] = [];
   if (hooks.length) {
-    parts.push(`タイトルで「${hooks.slice(0, 3).join("」「")}」系のフックを使用`);
-  }
-  if (video.spreadRate && video.spreadRate >= 2) {
-    parts.push(`拡散率${video.spreadRate.toFixed(1)}倍で拡散成功`);
-  }
-  if (planningMatch.length) {
-    parts.push(`企画キーワード（${planningMatch.join("、")}）と一致`);
+    parts.push(`冒頭フック：「${hooks.slice(0, 3).join("」「")}」系`);
   }
   const sentiment = detectSentiment(content);
   const sentimentLabel = {
-    bullish: "上昇・買い寄りのトーン",
-    bearish: "下落・恐怖喚起のトーン",
+    bullish: "上昇・買い寄りトーン",
+    bearish: "下落・恐怖喚起トーン",
     neutral: "中立・解説寄り",
     mixed: "上昇と下落の両方を提示",
   }[sentiment];
   parts.push(sentimentLabel);
+  if (planningMatch.length) {
+    parts.push(`企画キーワード一致：${planningMatch.slice(0, 3).join("・")}`);
+  }
 
-  const excerpt = content.slice(0, 200).replace(/\n/g, " ");
-  if (excerpt) parts.push(`冒頭要素: ${excerpt}…`);
-
-  return parts.join("。") + "。";
+  return parts.join(" ｜ ");
 }
 
 function buildDifferentiationMemo(
@@ -149,13 +306,13 @@ function buildDifferentiationMemo(
   }
   if (video.isInternational) {
     memos.push(
-      "【海外動画】英語圏の切り口・データを日本向けに翻訳・日常例えで差別化できる（他の日本YouTuberが触れていない情報源）"
+      "【海外動画】英語圏の切り口・データを日本向けに翻訳・日常例えで差別化できる"
     );
   } else if (!video.title.match(/日本|円|NISA|物価/i)) {
     memos.push("競合が触れていない日本市場・国内利用者目線を目玉にできる");
   }
 
-  return memos.slice(0, 5);
+  return memos.slice(0, 4);
 }
 
 function buildSummary(
@@ -184,27 +341,42 @@ export function analyzeYouTubeVideo(
   video: YouTubeVideo,
   planning?: PlanningContext
 ): YouTubeVideoAnalysis {
-  const content =
+  const rawContent =
     video.transcript?.trim() ||
     video.description?.trim() ||
     video.title;
+  const cleanedContent = cleanContentText(rawContent);
   const contentSource: YouTubeVideoAnalysis["contentSource"] = video.transcript
     ? "transcript"
     : video.description
       ? "description"
       : "title_only";
 
-  const mentionedPrices = extractPrices(content);
-  const sentiment = detectSentiment(content);
-  const keyPoints = extractKeyPoints(content);
-  const excerpt = content.slice(0, 600);
+  const mentionedPrices = extractPrices(cleanedContent);
+  const sentiment = detectSentiment(cleanedContent);
+  const keyPoints = extractKeyPoints(cleanedContent);
+  const excerpt = cleanedContent.slice(0, 600);
+
   const structureAnalysis = keyPoints.length
     ? keyPoints
-    : video.description
+    : cleanedContent
         .split(/\n/)
-        .filter((l) => l.trim().length > 20)
+        .filter((l) => l.trim().length > 25 && !isPromoLine(l))
         .slice(0, 5)
         .map((l) => l.trim().slice(0, 120));
+
+  const contentOverview = buildContentOverview(
+    video,
+    cleanedContent,
+    keyPoints,
+    contentSource
+  );
+  const whyPerformingWell = buildWhyPerformingWell(
+    video,
+    cleanedContent,
+    sentiment,
+    planning
+  );
 
   return {
     videoId: video.videoId,
@@ -223,9 +395,11 @@ export function analyzeYouTubeVideo(
     subscriberCount: video.subscriberCount,
     spreadRate: video.spreadRate,
     isInternational: video.isInternational,
-    hookAnalysis: buildHookAnalysis(video, content, planning),
+    hookAnalysis: buildHookAnalysis(video, cleanedContent, planning),
     structureAnalysis,
     differentiationMemo: buildDifferentiationMemo(video, planning),
+    contentOverview,
+    whyPerformingWell,
   };
 }
 

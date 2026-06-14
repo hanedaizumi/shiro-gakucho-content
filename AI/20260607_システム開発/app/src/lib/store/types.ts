@@ -38,6 +38,7 @@ export interface NewsLlmScore {
   impactScore: number;
   relevanceScore: number;
   reason?: string | null;
+  summary?: string | null;
   createdAt: string;
 }
 

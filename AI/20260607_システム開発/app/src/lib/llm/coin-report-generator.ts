@@ -17,6 +17,10 @@ import {
   YOUTUBE_OUTPUT_DOMESTIC,
   YOUTUBE_OUTPUT_INTERNATIONAL,
 } from "@/lib/planning/selection";
+import {
+  buildNewsScriptMemo,
+  resolveNewsOverview,
+} from "@/lib/planning/news-enricher";
 
 const RANK_LABELS = ["🥇", "🥈", "🥉", "4位", "5位"];
 
@@ -110,25 +114,22 @@ async function buildNewsSection(
 採用基準：${scoringMethod}`;
 
   const blocks = topNews.map((ranked, i) => {
-    const { item, rankScore, freshnessScore, impactScore, relevanceScore, llmReason } = ranked;
-    const body = `${item.title} ${item.summary}`;
+    const { item, rankScore, freshnessScore, impactScore, relevanceScore, llmReason, llmSummary } = ranked;
+    const overview = resolveNewsOverview(item, llmSummary);
+    const body = `${item.title} ${overview}`;
     const highlights = extractNumericHighlights(body);
     const label = RANK_LABELS[i] ?? `${i + 1}位`;
-    const hookIdea = llmReason
-      ? `AI判定：${llmReason}`
-      : relevanceScore >= 40
-        ? `台本貢献度が高い（スコア${relevanceScore}/60）。根拠素材として直接活用可`
-        : "コイン関連ニュースとして根拠素材に使える。企画との接続を手動で補強推奨";
+    const scriptMemo = buildNewsScriptMemo(item, planning, llmReason, overview);
 
     return `#### ${label} ランキング${i + 1}位｜総合スコア：${rankScore}/100（鮮度${freshnessScore}＋インパクト${impactScore}＋貢献度${relevanceScore}）
 **${item.title}**
 - 日付：${formatDate(item.publishedAt)}${ageLabel(item.publishedAt)}
 - ソース：${item.source}
-- 内容：${item.summary || item.title}
+- **概要（内容説明）**：${overview}
 - 数値ハイライト：
-${highlights.length ? highlights.map((h) => `  - ${h}`).join("\n") : "  - （RSS要約から数値抽出なし。原文URLで確認推奨）"}
+${highlights.length ? highlights.map((h) => `  - ${h}`).join("\n") : "  - （数値なし）"}
 - URL：${item.url || "なし"}
-- 台本活用メモ：${hookIdea}`;
+- **台本活用メモ**：${scriptMemo}`;
   });
 
   return `${header}\n\n${blocks.join("\n\n---\n\n")}`;
@@ -287,10 +288,16 @@ function formatCompetitorBlock(
 ${v.url}
 チャンネル：${v.channel} ／ 区分：${region} ／ 登録者数：${subs}人 ／ 再生数：${views}回 ／ 拡散率：約${spread}倍
 
-**フック分析：**
-${v.hookAnalysis ?? v.summary}
+**動画概要（何の動画か）：**
+${v.contentOverview ?? v.summary}
 
-**構成分析：**
+**なぜ伸びているか（拡散要因）：**
+${v.whyPerformingWell ?? v.hookAnalysis ?? "（分析データなし）"}
+
+**フック・トーン：**
+${v.hookAnalysis ?? "—"}
+
+**構成の要点：**
 ${(v.structureAnalysis ?? v.keyPoints ?? []).map((p) => `- ${p}`).join("\n") || "- （字幕/概要欄から抽出）"}
 
 **差別化メモ：**

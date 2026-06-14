@@ -8,6 +8,7 @@ export interface LlmNewsScore {
   impactScore: number;    // 0-20
   relevanceScore: number; // 0-60
   reason?: string;
+  summary?: string;       // 日本語概要（2〜3文）
 }
 
 interface LlmResponseItem {
@@ -15,6 +16,7 @@ interface LlmResponseItem {
   impact: number;
   relevance: number;
   reason?: string;
+  summary?: string;
 }
 
 /** planning context の内容からハッシュを生成（キャッシュキー用） */
@@ -52,6 +54,7 @@ export async function scoreNewsWithLlm(
       impactScore: c.impactScore,
       relevanceScore: c.relevanceScore,
       reason: c.reason ?? undefined,
+      summary: c.summary ?? undefined,
     });
   }
 
@@ -72,6 +75,7 @@ export async function scoreNewsWithLlm(
         impactScore: score.impactScore,
         relevanceScore: score.relevanceScore,
         reason: score.reason ?? null,
+        summary: score.summary ?? null,
       };
     })
     .filter(Boolean) as {
@@ -80,6 +84,7 @@ export async function scoreNewsWithLlm(
       impactScore: number;
       relevanceScore: number;
       reason: string | null;
+      summary: string | null;
     }[];
 
   if (toCreate.length) {
@@ -124,7 +129,7 @@ async function callLlmJudge(
     .join("\n");
 
   const systemPrompt = `あなたはクリプト系YouTubeチャンネルのリサーチャーです。
-提供された動画企画情報を基に、各ニュースを2軸で採点してください。
+提供された動画企画情報を基に、各ニュースを採点し、日本語で概要を書いてください。
 必ずJSONのみで回答し、前後に説明文・コードブロックは一切入れないでください。`;
 
   const userPrompt = `【動画企画】
@@ -137,8 +142,13 @@ ${newsList}
 A. 市場インパクト（0-20点）：大企業・国家・規制当局の動き、巨額資金移動、急騰/急落の事実が含まれるか
 B. 台本への貢献度（0-60点）：動画企画の根拠・エビデンスとして直接使えるか（キーワード一致ではなく文脈の一致を重視）
 
+【summaryの書き方】
+- 日本語で2〜3文（80〜200文字）
+- 「何が起きたか」「なぜ重要か」「XRP/リップルへの影響」を具体的に
+- タイトルやRSS要約が短い場合は、文脈から内容を補完して書く
+
 【出力形式（JSONのみ・他は不要）】
-[{"id":1,"impact":15,"relevance":50,"reason":"理由20文字以内"},...]`;
+[{"id":1,"impact":15,"relevance":50,"reason":"台本への使い方を20文字以内","summary":"日本語概要2〜3文"},...]`;
 
   try {
     const raw = await callLlm(systemPrompt, userPrompt);
@@ -161,6 +171,7 @@ function parseLlmResponse(raw: string, count: number): Map<number, LlmNewsScore>
         impactScore: clamp(Number(item.impact) || 0, 0, 20),
         relevanceScore: clamp(Number(item.relevance) || 0, 0, 60),
         reason: typeof item.reason === "string" ? item.reason : undefined,
+        summary: typeof item.summary === "string" ? item.summary : undefined,
       });
     }
     return result;
