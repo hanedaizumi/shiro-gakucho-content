@@ -58,11 +58,30 @@ Write-Host "==> Service: $ServiceName" -ForegroundColor Cyan
 & $Gcloud config set project $ProjectId *>&1 | Out-Null
 
 Write-Host "==> Enabling required APIs..." -ForegroundColor Cyan
-& $Gcloud services enable run.googleapis.com cloudbuild.googleapis.com artifactregistry.googleapis.com secretmanager.googleapis.com --quiet *>&1 | Out-Null
+& $Gcloud services enable run.googleapis.com cloudbuild.googleapis.com artifactregistry.googleapis.com secretmanager.googleapis.com storage.googleapis.com --quiet *>&1 | Out-Null
+
+# --- GCS 永続ストレージ（Cloud Run の再起動・デプロイ後もレポートを保持） ---
+$BucketName = "$ProjectId-shiro-app-data"
+Write-Host "==> GCS bucket: $BucketName" -ForegroundColor Cyan
+& $Gcloud storage buckets describe "gs://$BucketName" --quiet *>&1 | Out-Null
+if ($LASTEXITCODE -ne 0) {
+  & $Gcloud storage buckets create "gs://$BucketName" --location=$Region --uniform-bucket-level-access *>&1 | Out-Null
+}
+
+$ProjectNumber = & $Gcloud projects describe $ProjectId --format="value(projectNumber)" 2>$null
+if ($ProjectNumber) {
+  $RunSA = "$ProjectNumber-compute@developer.gserviceaccount.com"
+  & $Gcloud storage buckets add-iam-policy-binding "gs://$BucketName" `
+    --member="serviceAccount:$RunSA" `
+    --role="roles/storage.objectAdmin" `
+    --quiet *>&1 | Out-Null
+}
 
 $envVars = @(
   "LLM_PROVIDER=openai",
-  "DATABASE_URL=file:./data/store.json"
+  "DATABASE_URL=file:./data/store.json",
+  "GCS_BUCKET_NAME=$BucketName",
+  "GCS_OBJECT_NAME=data/store.json"
 )
 
 if (Test-Path $EnvFile) {

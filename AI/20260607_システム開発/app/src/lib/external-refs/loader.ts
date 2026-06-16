@@ -1,12 +1,13 @@
 import { readFile, readdir } from "fs/promises";
 import path from "path";
 import { prisma } from "@/lib/db";
-import { getTechnicalWorkspacePath } from "./workspace";
+import { detectConceptsInText } from "@/lib/analysis/phase-concepts";
 import {
   loadPreviousScript,
   buildPreviousPredictionReport,
   type PreviousScriptContext,
 } from "./previous-script";
+import { getTechnicalWorkspacePath } from "./workspace";
 
 export interface ExternalContext {
   persona: string;
@@ -40,8 +41,24 @@ async function findScriptFiles(dir: string): Promise<string[]> {
 }
 
 function extractConcept(content: string): string | null {
-  const m = content.match(/⑤[^\n]*[：:]\s*(.+)/);
-  return m?.[1]?.trim() ?? null;
+  const patterns = [
+    /⑤[^\n]*[：:]\s*(.+)/,
+    /今週の重要ポイント[：:]\s*(.+)/,
+    /今週の注目(?:インジケーター|ポイント)[：:]\s*(.+)/,
+    /②[^\n]*[「『]([^」』]+)[」』]/,
+  ];
+  for (const p of patterns) {
+    const m = content.match(p);
+    if (m?.[1]?.trim()) return m[1].trim();
+  }
+  const detected = detectConceptsInText(content);
+  return detected[0] ?? null;
+}
+
+function extractAllConcepts(content: string): string[] {
+  const fromHeader = extractConcept(content);
+  const detected = detectConceptsInText(content);
+  return [...new Set([fromHeader, ...detected].filter(Boolean) as string[])];
 }
 
 function extractEpisode(content: string): string | null {
@@ -102,7 +119,7 @@ export async function loadExternalContext(
 
   const usedConcepts = [
     ...dbHistory.map((h) => h.conceptUsed).filter(Boolean) as string[],
-    ...sorted.map((s) => extractConcept(s.content)).filter(Boolean) as string[],
+    ...sorted.flatMap((s) => extractAllConcepts(s.content)),
   ];
 
   const usedEpisodes = [
@@ -145,6 +162,7 @@ export async function loadExternalContext(
 export async function syncScriptHistoryFromFiles(): Promise<number> {
   const ctx = await loadExternalContext();
   let synced = 0;
+  const conceptsToPersist: string[] = [];
 
   const kanjiMap: Record<string, number> = {
     "①": 1, "②": 2, "③": 3, "④": 4, "⑤": 5,
@@ -177,7 +195,14 @@ export async function syncScriptHistoryFromFiles(): Promise<number> {
         content: script.content.slice(0, 50000),
       },
     });
+    conceptsToPersist.push(...extractAllConcepts(script.content));
     synced++;
+  }
+
+  if (conceptsToPersist.length) {
+    await prisma.conceptLog.ensureMany({
+      names: [...new Set(conceptsToPersist)],
+    });
   }
 
   return synced;

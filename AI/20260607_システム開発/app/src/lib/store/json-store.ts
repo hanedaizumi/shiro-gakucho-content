@@ -69,18 +69,79 @@ function ensureDb(db: Database): Database {
   return db;
 }
 
-async function saveDb(db: Database): Promise<void> {
-  const content = JSON.stringify(db, null, 2);
+/** 同一IDのレコードをマージし、書き込み競合によるデータ消失を防ぐ */
+function mergeDatabases(remote: Database, local: Database): Database {
+  const mergeById = <T extends { id: string }>(
+    a: T[],
+    b: T[],
+    pickNewer?: (x: T, y: T) => T
+  ): T[] => {
+    const map = new Map<string, T>();
+    for (const item of a) map.set(item.id, item);
+    for (const item of b) {
+      const existing = map.get(item.id);
+      if (!existing) {
+        map.set(item.id, item);
+      } else if (pickNewer) {
+        map.set(item.id, pickNewer(existing, item));
+      }
+    }
+    return [...map.values()];
+  };
 
-  // ローカルファイルに書き込む
+  const pickByUpdatedAt = <T extends { updatedAt: string }>(a: T, b: T) =>
+    a.updatedAt >= b.updatedAt ? a : b;
+
+  return ensureDb({
+    jobs: mergeById(remote.jobs, local.jobs),
+    sources: mergeById(remote.sources, local.sources),
+    snapshots: mergeById(remote.snapshots, local.snapshots),
+    reports: mergeById(remote.reports, local.reports, pickByUpdatedAt),
+    scripts: mergeById(remote.scripts, local.scripts, pickByUpdatedAt),
+    scriptHistory: mergeById(remote.scriptHistory, local.scriptHistory),
+    newsLlmScores: mergeById(remote.newsLlmScores, local.newsLlmScores),
+    conceptLog: mergeById(remote.conceptLog, local.conceptLog),
+  });
+}
+
+/** 直列書き込みキュー（並行リクエストによる上書き消失を防止） */
+let writeQueue: Promise<void> = Promise.resolve();
+
+async function saveDbInternal(db: Database): Promise<void> {
+  const gcs = getGcsConfig();
+  let merged = ensureDb(db);
+
+  // 保存前に GCS の最新状態とマージ（他インスタンスの書き込みを失わない）
+  if (gcs) {
+    try {
+      const remote = await gcsRead(gcs.bucket, gcs.object);
+      if (remote) {
+        merged = mergeDatabases(JSON.parse(remote) as Database, merged);
+      }
+    } catch {
+      // マージ失敗時はローカル状態を優先
+    }
+  }
+
+  const content = JSON.stringify(merged, null, 2);
+
   await mkdir(DATA_DIR, { recursive: true });
   await writeFile(DB_FILE, content, "utf-8");
 
-  // GCS が設定されている場合は非同期で GCS にも書き込む（エラーは無視）
-  const gcs = getGcsConfig();
   if (gcs) {
-    gcsWrite(gcs.bucket, gcs.object, content).catch(() => {});
+    const ok = await gcsWrite(gcs.bucket, gcs.object, content);
+    if (!ok) {
+      console.error(
+        `[store] GCS write failed: gs://${gcs.bucket}/${gcs.object}. ` +
+          "Reports may be lost on container restart. Check bucket IAM."
+      );
+    }
   }
+}
+
+async function saveDb(db: Database): Promise<void> {
+  writeQueue = writeQueue.then(() => saveDbInternal(db));
+  return writeQueue;
 }
 
 export const store = {
@@ -362,8 +423,8 @@ export const store = {
 
     /**
      * 使用した概念を記録する。
-     * 同じ台本番号（または番号なしなら同じ日付）の既存エントリは上書きするため、
-     * 同じレポートを再生成しても履歴が増殖しない。
+     * - 同じ台本番号の既存エントリは上書き（再生成時）
+     * - 同じ概念名は重複登録しない（一度使った概念は履歴に残る）
      */
     async record(args: {
       name: string;
@@ -372,21 +433,36 @@ export const store = {
       const db = await loadDb();
       const today = new Date().toISOString().split("T")[0];
 
-      const idx = db.conceptLog.findIndex((e) =>
-        args.scriptNumber != null
-          ? e.scriptNumber === args.scriptNumber
-          : e.scriptNumber == null && e.date === today
-      );
-
-      if (idx >= 0) {
-        db.conceptLog[idx] = {
-          ...db.conceptLog[idx],
-          name: args.name,
-          date: today,
-        };
-        await saveDb(db);
-        return db.conceptLog[idx];
+      if (args.scriptNumber != null) {
+        const idx = db.conceptLog.findIndex(
+          (e) => e.scriptNumber === args.scriptNumber
+        );
+        if (idx >= 0) {
+          db.conceptLog[idx] = {
+            ...db.conceptLog[idx],
+            name: args.name,
+            date: today,
+          };
+          await saveDb(db);
+          return db.conceptLog[idx];
+        }
+      } else {
+        const todayIdx = db.conceptLog.findIndex(
+          (e) => e.scriptNumber == null && e.date === today
+        );
+        if (todayIdx >= 0) {
+          db.conceptLog[todayIdx] = {
+            ...db.conceptLog[todayIdx],
+            name: args.name,
+            date: today,
+          };
+          await saveDb(db);
+          return db.conceptLog[todayIdx];
+        }
       }
+
+      const sameName = db.conceptLog.find((e) => e.name === args.name);
+      if (sameName) return sameName;
 
       const entry: ConceptLog = {
         id: cuid(),
@@ -398,6 +474,27 @@ export const store = {
       db.conceptLog.push(entry);
       await saveDb(db);
       return entry;
+    },
+
+    /** 過去台本などから検出した概念を履歴に追加（同名はスキップ） */
+    async ensureMany(args: { names: string[] }): Promise<void> {
+      const db = await loadDb();
+      const today = new Date().toISOString().split("T")[0];
+      let changed = false;
+      for (const raw of args.names) {
+        const name = raw.trim();
+        if (!name) continue;
+        if (db.conceptLog.some((e) => e.name === name)) continue;
+        db.conceptLog.push({
+          id: cuid(),
+          name,
+          scriptNumber: null,
+          date: today,
+          createdAt: now(),
+        });
+        changed = true;
+      }
+      if (changed) await saveDb(db);
     },
   },
 

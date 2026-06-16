@@ -56,16 +56,17 @@ export async function gcsWrite(
   if (!token) return false;
 
   const encoded = encodeURIComponent(object);
+  // uploadType=media で同名オブジェクトは上書き
   const url = `${GCS_BASE}/upload/storage/v1/b/${bucket}/o?uploadType=media&name=${encoded}`;
   try {
     const res = await fetch(url, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
+        "Content-Type": "application/json; charset=UTF-8",
       },
       body: content,
-      signal: AbortSignal.timeout(8000),
+      signal: AbortSignal.timeout(15000),
     });
     return res.ok;
   } catch {

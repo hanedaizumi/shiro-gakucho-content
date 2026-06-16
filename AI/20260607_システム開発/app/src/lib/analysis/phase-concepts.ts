@@ -65,28 +65,28 @@ export const PHASE_CONCEPT_MAP: Record<MarketPhase, PhaseConcept[]> = {
     "逆三尊の正しい見方",
     "ローソク足のヒゲが語る攻防（ピンバー）",
     "価格帯出来高",
-    "ATRを使った損切り・利確の科学",
+    "出来高で見抜く本物のブレイク",
   ],
   range: [
     "価格帯出来高",
     "ボリンジャーバンド・スクイーズ",
     "ダウ理論の厳密定義",
     "出来高で見抜く本物のブレイク",
-    "ATRを使った損切り・利確の科学",
+    "ローソク足のヒゲが語る攻防（ピンバー）",
   ],
   strong_trend_bull: [
     "エリオット波動・第三波",
     "フィボナッチ0.618",
     "オーダーブロック",
     "出来高で見抜く本物のブレイク",
-    "ATRを使った損切り・利確の科学",
+    "ローソク足のヒゲが語る攻防（ピンバー）",
   ],
   strong_trend_bear: [
     "エリオット波動・第三波",
     "上昇ウェッジのブレイク",
     "オーダーブロック",
     "ローソク足のヒゲが語る攻防（ピンバー）",
-    "ATRを使った損切り・利確の科学",
+    "出来高で見抜く本物のブレイク",
   ],
   reversal: [
     "RSIダイバージェンスと清算の連鎖",
@@ -98,7 +98,20 @@ export const PHASE_CONCEPT_MAP: Record<MarketPhase, PhaseConcept[]> = {
 };
 
 /** 全概念のフラットリスト（フェーズ候補が全滅した時のフォールバック用） */
-const ALL_CONCEPTS = Object.keys(CONCEPT_TOPIC_KEYWORDS) as PhaseConcept[];
+export const ALL_PHASE_CONCEPTS = Object.keys(CONCEPT_TOPIC_KEYWORDS) as PhaseConcept[];
+
+/** テキスト（過去台本など）から使用済み概念を検出する */
+export function detectConceptsInText(text: string): PhaseConcept[] {
+  if (!text.trim()) return [];
+  return ALL_PHASE_CONCEPTS.filter((name) => isConceptCovered(name, [text]));
+}
+
+/** 未使用の概念を優先度順に返す（ATRは最後の手段） */
+function pickFallbackConcept(usedConcepts: string[]): PhaseConcept {
+  const available = ALL_PHASE_CONCEPTS.filter((n) => !isConceptCovered(n, usedConcepts));
+  const nonAtr = available.filter((n) => n !== "ATRを使った損切り・利確の科学");
+  return nonAtr[0] ?? available[0] ?? ALL_PHASE_CONCEPTS[0];
+}
 
 export function pickConceptByPhase(
   phase: MarketPhase,
@@ -154,9 +167,9 @@ export function pickConceptByPhase(
         else if (Math.abs(t.change7d) > 6) score += 20;
         break;
       case "ATRを使った損切り・利確の科学":
-        // ボラティリティが高い（ATRが価格の3%超）局面で特に刺さる実用テーマ
-        if (t.atr14 / t.currentPrice > 0.03) score += 35;
-        else score += 20;
+        // フェーズ候補には含めない。全候補が尽きた場合のみフォールバックで使用
+        if (t.atr14 / t.currentPrice > 0.03) score += 15;
+        else score += 5;
         break;
       case "出来高で見抜く本物のブレイク":
         if (t.volumeSpike) score += 40;
@@ -174,10 +187,9 @@ export function pickConceptByPhase(
     }
   }
 
-  // フェーズ候補が全て使用済みの場合、全概念から未使用のものを探す
+  // フェーズ候補が全て使用済みの場合、未使用概念から選ぶ（ATRは最後の手段）
   if (!best) {
-    const fallback = ALL_CONCEPTS.find((n) => !isConceptCovered(n, usedConcepts));
-    const name = fallback ?? "ATRを使った損切り・利確の科学";
+    const name = pickFallbackConcept(usedConcepts);
     best = { name, reason: buildPhaseConceptReason(name, t, divHint), score: 10 };
   }
 
