@@ -1,4 +1,6 @@
 # Vantage口座開設 コミュニティ向け解説動画 台本
+
+> **保存場所：** `08_アウトプット/Discord/vantage_community_video_script.md`（2026/06/16 移管）
 **対象：Discordコミュニティメンバー（VIP含む）**
 **形式：Discord画面を映しながら解説**
 **作成日：2026/05/25**
