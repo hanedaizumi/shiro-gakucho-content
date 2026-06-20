@@ -73,6 +73,7 @@ function isWithinMaxAge(publishedAt: string, maxAgeHours: number): boolean {
   return age <= maxAgeHours * 60 * 60 * 1000;
 }
 
+/** タイトル＋説明文のいずれかに対象コインのキーワードが含まれるか */
 function isRelevantToCoin(
   title: string,
   description: string,
@@ -81,6 +82,28 @@ function isRelevantToCoin(
   if (!terms.length) return true;
   const text = `${title} ${description}`.toLowerCase();
   return terms.some((t) => text.includes(t.toLowerCase()));
+}
+
+/**
+ * タイトル単体でコイン関連性を判定する（より厳密なフィルタ）。
+ * 概要欄にコイン名が出てくるだけの他コイン動画を除外するために使用。
+ */
+function isTitleRelevantToCoin(title: string, terms: string[]): boolean {
+  if (!terms.length) return true;
+  const t = title.toLowerCase();
+  return terms.some((term) => t.includes(term.toLowerCase()));
+}
+
+/** YouTube ショート動画を検出する（タイトル・概要欄の #shorts タグで判定） */
+function isShortVideo(title: string, description: string): boolean {
+  const text = `${title} ${description}`.toLowerCase();
+  return (
+    /#shorts\b/.test(text) ||
+    /#short\b/.test(text) ||
+    /#youtubeshorts\b/.test(text) ||
+    /#shortsvideo\b/.test(text) ||
+    /\byt-?shorts\b/.test(text)
+  );
 }
 
 function detectInternational(title: string, description: string): boolean {
@@ -467,6 +490,8 @@ export async function collectYouTubeVideos(
   const freshDetails = details.filter(
     (d) =>
       isWithinMaxAge(d.publishedAt, maxAgeHours) &&
+      !isShortVideo(d.title, d.description) &&
+      isTitleRelevantToCoin(d.title, relevanceTerms) &&
       isRelevantToCoin(d.title, d.description, relevanceTerms)
   );
   diagnostics.afterRelevanceFilter = freshDetails.length;

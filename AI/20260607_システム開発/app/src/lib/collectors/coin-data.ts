@@ -83,7 +83,7 @@ export async function collectCoinData(
     : null;
 
   const youtubeAnalysisAll = youtube.map((v) =>
-    analyzeYouTubeVideo(v, planning)
+    analyzeYouTubeVideo(v, planning, coin)
   );
   const youtubeAnalysis = selectYouTubeForScript(youtubeAnalysisAll, planning);
   const selectedIds = new Set(youtubeAnalysis.map((a) => a.videoId));

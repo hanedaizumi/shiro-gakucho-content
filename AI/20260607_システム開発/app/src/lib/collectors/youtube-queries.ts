@@ -37,16 +37,14 @@ export function buildYouTubeSearchQueries(
 
   const en = unique([
     ...presetEn,
-    `${sym} ripple analysis`,
+    `${sym} analysis`,
     `${sym} crypto news`,
     `${sym} price prediction`,
-    `ripple ${sym} ETF`,
-    `${sym} Goldman Sachs`,
-    `${sym} CLARITY Act`,
+    `${sym} ETF`,
     `${sym} technical analysis`,
-    `ripple xrp explained`,
+    `${sym} explained`,
     ...pk.slice(0, 4).map((k) => `${sym} ${k}`),
-    ...pk.filter((k) => /^[A-Za-z]/.test(k)).slice(0, 3).map((k) => `XRP ${k}`),
+    ...pk.filter((k) => /^[A-Za-z]/.test(k)).slice(0, 3).map((k) => `${sym} ${k}`),
   ]);
 
   return { ja, en };

@@ -49,9 +49,10 @@ const PROMO_PATTERNS = [
 ];
 
 const CONTENT_KEYWORDS = [
-  "xrp", "リップル", "ripple", "etf", "sec", "法案", "供給", "エスクロー", "odl", "送金",
-  "価格", "予想", "シナリオ", "保有量", "億", "裁判", "規制", "ai", "銀行", "決済",
-  "support", "resistance", "bill", "escrow", "supply", "inflow", "clarity",
+  "etf", "sec", "法案", "供給", "送金", "決済",
+  "価格", "予想", "シナリオ", "保有量", "億", "裁判", "規制", "ai", "銀行",
+  "サポート", "レジスタンス", "エントリー", "損切り", "利確", "トレンド",
+  "support", "resistance", "bill", "supply", "inflow", "clarity",
 ];
 
 function isPromoLine(line: string): boolean {
@@ -98,19 +99,20 @@ function detectSentiment(text: string): YouTubeVideoAnalysis["sentiment"] {
   return "neutral";
 }
 
-function extractKeyPoints(text: string): string[] {
+function extractKeyPoints(text: string, coinTerms?: string[]): string[] {
   const cleaned = cleanContentText(text);
   const sentences = cleaned
     .split(/[。．\n.!?]/)
     .map((s) => s.trim())
     .filter((s) => s.length > 20 && !isPromoLine(s));
 
-  const keywords = [
+  const baseKeywords = [
     "サポート", "レジスタンス", "エントリー", "損切り", "利確", "トレンド",
-    "ETF", "法案", "売却", "流入", "ODL", "送金", "マーケットメイカー",
+    "ETF", "法案", "売却", "流入", "送金", "マーケットメイカー",
     "support", "resistance", "entry", "stop", "target", "bill", "SEC",
-    "XRP", "リップル", "保有量", "億", "シナリオ", "供給", "エスクロー",
+    "保有量", "億", "シナリオ", "供給", "価格", "予想",
   ];
+  const keywords = [...baseKeywords, ...(coinTerms ?? [])];
 
   const scored = sentences
     .map((s) => ({
@@ -123,35 +125,39 @@ function extractKeyPoints(text: string): string[] {
   return scored.slice(0, 6).map((x) => x.s.slice(0, 150));
 }
 
-function inferTopicFromTitle(title: string): string {
+function inferTopicFromTitle(title: string, coinName?: string): string {
   const t = title.toLowerCase();
-  if (/1000\s*xrp|1000枚|30万円|20万円|億/.test(t)) {
-    return "XRPの保有量・投資額と将来の資産増シナリオを解説する動画";
+  const cn = coinName ?? "暗号資産";
+  if (/1000枚|30万円|20万円|大量保有|億/.test(t)) {
+    return `${cn}の保有量・投資額と将来の資産増シナリオを解説する動画`;
   }
   if (/上がらない|下落|売却|警告|deadline/.test(t)) {
-    return "XRPが上がらない・下落する理由とリスクを解説する動画";
+    return `${cn}の下落リスク・注意点を解説する動画`;
   }
   if (/爆上げ|億確定|rich|supply shock|etf/.test(t)) {
-    return "XRPの上昇シナリオ・爆上げ条件を提示する動画";
+    return `${cn}の上昇シナリオ・爆上げ条件を提示する動画`;
   }
   if (/clarity|法案|sec|regulation|供給/.test(t)) {
-    return "規制・法案・供給量がXRPに与える影響を解説する動画";
+    return `規制・法案・供給量が${cn}に与える影響を解説する動画`;
   }
-  if (/ceo|ガーリングハウス|garlinghouse|暴露/.test(t)) {
-    return "リップルCEOの発言や業界動向を軸にした解説動画";
+  if (/ceo|暴露|founder|創設者/.test(t)) {
+    return `${cn}関連の発言・業界動向を軸にした解説動画`;
   }
-  return "XRP（リップル）の最新動向・投資判断を解説する動画";
+  return `${cn}の最新動向・投資判断を解説する動画`;
 }
 
 function buildContentOverview(
   video: YouTubeVideo,
   cleanedContent: string,
   keyPoints: string[],
-  contentSource: YouTubeVideoAnalysis["contentSource"]
+  contentSource: YouTubeVideoAnalysis["contentSource"],
+  coinName?: string
 ): string {
+  const topicLabel = inferTopicFromTitle(video.title, coinName);
+
   if (keyPoints.length >= 2) {
     const bullets = keyPoints.slice(0, 3).join("。");
-    return `${inferTopicFromTitle(video.title)}。主な論点：${bullets}。`;
+    return `${topicLabel}。主な論点：${bullets}。`;
   }
 
   const sentences = cleanedContent
@@ -164,14 +170,14 @@ function buildContentOverview(
     .slice(0, 3);
 
   if (sentences.length) {
-    return `${inferTopicFromTitle(video.title)}。${sentences.join("。")}。`;
+    return `${topicLabel}。${sentences.join("。")}。`;
   }
 
   if (contentSource === "title_only") {
-    return `${inferTopicFromTitle(video.title)}。字幕・概要欄が取得できなかったため、タイトルから推定。`;
+    return `${topicLabel}。字幕・概要欄が取得できなかったため、タイトルから推定。`;
   }
 
-  return `${inferTopicFromTitle(video.title)}。概要欄・字幕から具体的な論点の抽出が限定的。`;
+  return `${topicLabel}。概要欄・字幕から具体的な論点の抽出が限定的。`;
 }
 
 function formatCountShort(n?: number): string {
@@ -206,8 +212,8 @@ function buildWhyPerformingWell(
   }
 
   const hooks: string[] = [];
-  if (/億|億確定|rich|お金持ち|1000\s*xrp|1000枚/.test(titleLower)) {
-    hooks.push("具体的な保有量・金額（1000XRP・20万円等）で視聴者が自分事化しやすい");
+  if (/億|億確定|rich|お金持ち|1000枚|大量保有/.test(titleLower)) {
+    hooks.push("具体的な保有量・金額で視聴者が自分事化しやすい構成");
   }
   if (/緊急|urgent|警告|warning|shock|衝撃/.test(titleLower)) {
     hooks.push("「緊急」「警告」フレームで今すぐ見る動機を作っている");
@@ -216,7 +222,7 @@ function buildWhyPerformingWell(
     hooks.push("「暴露」「裏シナリオ」で情報の希少性・特別感を演出");
   }
   if (/上がらない|下落|売却|deadline/.test(titleLower)) {
-    hooks.push("XRPホルダーの「上がらない不満・不安」に直撃するタイトル設計");
+    hooks.push("「上がらない不満・不安」に直撃するタイトル設計");
   }
   if (/ゆっくり/.test(title)) {
     hooks.push("ゆっくり解説形式で初心者でも見られる入口設計");
@@ -224,12 +230,12 @@ function buildWhyPerformingWell(
   if (hooks.length) reasons.push(hooks.join("／"));
 
   if (sentiment === "bullish") {
-    reasons.push("上昇・資産増のトーンが、XRPコミュニティの期待心理（爆上げ待ち）に合致");
+    reasons.push("上昇・資産増のトーンが、コインホルダーの期待心理（爆上げ待ち）に合致");
   } else if (sentiment === "bearish") {
     reasons.push("下落・リスク警告のトーンが、不安を抱えるホルダーの関心を引く");
   }
 
-  if (/(etf|法案|sec|ai|供給|エスクロー|clarity)/i.test(`${title} ${content}`)) {
+  if (/(etf|法案|sec|ai|供給|clarity)/i.test(`${title} ${content}`)) {
     reasons.push("ETF・規制・供給・AIなど「今まさに話題」のキーワードを含み、検索流入を取りやすい");
   }
 
@@ -339,7 +345,8 @@ function buildSummary(
 
 export function analyzeYouTubeVideo(
   video: YouTubeVideo,
-  planning?: PlanningContext
+  planning?: PlanningContext,
+  coin?: { name: string; symbol: string; keywords: string[] }
 ): YouTubeVideoAnalysis {
   const rawContent =
     video.transcript?.trim() ||
@@ -352,9 +359,10 @@ export function analyzeYouTubeVideo(
       ? "description"
       : "title_only";
 
+  const coinTerms = coin ? [coin.name, coin.symbol, ...coin.keywords] : [];
   const mentionedPrices = extractPrices(cleanedContent);
   const sentiment = detectSentiment(cleanedContent);
-  const keyPoints = extractKeyPoints(cleanedContent);
+  const keyPoints = extractKeyPoints(cleanedContent, coinTerms);
   const excerpt = cleanedContent.slice(0, 600);
 
   const structureAnalysis = keyPoints.length
@@ -369,7 +377,8 @@ export function analyzeYouTubeVideo(
     video,
     cleanedContent,
     keyPoints,
-    contentSource
+    contentSource,
+    coin?.name
   );
   const whyPerformingWell = buildWhyPerformingWell(
     video,

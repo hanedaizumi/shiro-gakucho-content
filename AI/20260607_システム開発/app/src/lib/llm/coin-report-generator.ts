@@ -4,7 +4,6 @@ import type { TechnicalAnalysis } from "@/lib/types";
 import { formatPrice } from "@/lib/analysis";
 import type { YouTubeVideoAnalysis } from "@/lib/collectors/youtube-analyzer";
 import {
-  buildPlanningAxisMemo,
   extractNumericHighlights,
   extractPlanningKeywords,
   formatCount,
@@ -78,14 +77,10 @@ function buildPlanningHeader(
     "",
     `## 【${dateShort} 追加｜${coin.name}（${coin.symbol}）リサーチ】`,
     "",
-    "### 企画メモ（台本の軸）"
+    "---",
+    ""
   );
 
-  for (const memo of buildPlanningAxisMemo(planning, coin.name, coin.symbol)) {
-    lines.push(`- ${memo}`);
-  }
-
-  lines.push("", "---", "");
   return lines;
 }
 
@@ -217,34 +212,12 @@ function buildCompetitorReport(
   analyses: YouTubeVideoAnalysis[],
   diagnostics: YouTubeCollectDiagnostics | null
 ): string {
-  const date = new Date().toLocaleDateString("ja-JP", {
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-  });
   const dateShort = new Date().toISOString().split("T")[0].replace(/-/g, "/");
 
   const header = [
     `# ${coin.name}（${coin.symbol}）競合台本リサーチ`,
     "",
-    "**対象企画**",
-    planning.thumbnailText ? `- サムネ：${planning.thumbnailText}` : "- サムネ：（未入力）",
-    planning.titleText ? `- タイトル：${planning.titleText}` : "- タイトル：（未入力）",
-    ...(planning.storyHypothesis ? [`- 台本仮説：${planning.storyHypothesis}`] : []),
-    "",
-    `**リサーチ実施日：${date}**`,
-    "",
-    "---",
-    "",
     `## 【${dateShort} 追加｜${coin.name}（${coin.symbol}）競合リサーチ】`,
-    "",
-    "### 採用基準メモ",
-    `- 最大${YOUTUBE_COLLECT_LIMIT}件収集 → **国内${YOUTUBE_OUTPUT_DOMESTIC}件＋海外${YOUTUBE_OUTPUT_INTERNATIONAL}件**に精査`,
-    "- 主題コイン動画の**拡散率2倍以上**のみ候補（登録者数の2倍以上再生）",
-    "- 対象期間：**直近6ヶ月以内**",
-    "- 企画（サムネ・タイトル）とのテーマ一致度で最終選定",
-    "",
-    "---",
     "",
     `### 台本採用競合 TOP${YOUTUBE_OUTPUT_DOMESTIC + YOUTUBE_OUTPUT_INTERNATIONAL}（国内${YOUTUBE_OUTPUT_DOMESTIC}＋海外${YOUTUBE_OUTPUT_INTERNATIONAL}）`,
     "",
