@@ -9,6 +9,11 @@ desktop.ini
 !AI/.cursor/rules/**
 !Cursor(シロ学長)/.cursor/
 !Cursor(シロ学長)/.cursor/**
+!Cursor(もえ)/.cursor/
+!Cursor(もえ)/.cursor/**
+!/.cursor/
+!/.cursor/rules/
+!/.cursor/rules/**
 
 # Python
 __pycache__/
